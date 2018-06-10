@@ -1,0 +1,13 @@
+<resources>
+
+    <style name="Widget.Button.Green" parent="android:Widget">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:padding">20dp</item>
+        <item name="backgroundTint">@color/colorAccent</item>
+        <item name="elevation">2dp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textAppearance">?android:textAppearanceMedium</item>
+    </style>
+
+</resources>
