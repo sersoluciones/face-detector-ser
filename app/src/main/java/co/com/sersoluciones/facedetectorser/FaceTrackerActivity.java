@@ -38,6 +38,7 @@ import android.graphics.RectF;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -91,9 +92,9 @@ import co.com.sersoluciones.facedetectorser.views.GraphicOverlay;
 
 import static co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer.PHOTO_SER_EXTRA_BUNDLE;
 import static co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer.PHOTO_SER_EXTRA_OPTIONS;
-import static co.com.sersoluciones.loggerser.DebugLog.log;
-import static co.com.sersoluciones.loggerser.DebugLog.logE;
-import static co.com.sersoluciones.loggerser.DebugLog.logW;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.log;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logE;
 
 /**
  * Activity for the face tracker app.  This app detects faces with the rear facing camera, and draws
@@ -298,9 +299,10 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     }
 
     private void takePhoto() {
-        showProgress(true);
+
         if (!mOptions.isDetectFace()) {
             mCameraSource.takePicture(shutterCallback, pictureCallback);
+            showProgress(true);
         } else {
             if (isDetectFace) {
                 isTakePhoto = true;
@@ -308,6 +310,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                     @Override
                     public void run() {
                         mCameraSource.takePicture(shutterCallback, pictureCallback);
+                        showProgress(true);
                     }
                 }, 1000);
 
@@ -319,73 +322,119 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
     public void returnURIImage(String path) {
         mPhotoPath = path;
-        if (mOptions.isSaveGalery()){
-            try {
-                mPhotoPath = saveImageInGalery(mPhotoPath);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        if (mOptions.isSaveGalery()) {
+            new SaveImageInGaleryAsyncTask().execute(mPhotoPath);
+        } else {
+            Intent intent = new Intent();
+            intent.putExtra(PATH_IMAGE_KEY, mPhotoPath);
+            setResult(RESULT_OK, intent);
+            finish();
         }
-
-        Intent intent = new Intent();
-        intent.putExtra(PATH_IMAGE_KEY, mPhotoPath);
-        setResult(RESULT_OK, intent);
-        finish();
     }
 
     @Override
     public void onPictureTaken(byte[] bytes) {
         if (mPreview != null)
             mPreview.stop();
-        logE("enra aca onPictureTaken imagen tomada");
+
         //decodeBytes(bytes);
         showProgress(false);
         File imageFile;
-        int rotation = 90;
+        int rotation = 0;
         if (toggle)
-            rotation = 270;
+            rotation = 360;
         try {
             // convert byte array into bitmap
-            Bitmap loadedImage = null;
-            Bitmap rotatedBitmap = null;
+            Bitmap loadedImage;
+            Bitmap scaledBitmap;
             loadedImage = BitmapFactory.decodeByteArray(bytes, 0,
                     bytes.length);
-            Matrix rotateMatrix = new Matrix();
-            rotateMatrix.postRotate(rotation);
 
-            // Scale down to the output size
-            Bitmap scaledBitmap = Bitmap.createBitmap(loadedImage, 0, 0,
-                    loadedImage.getWidth(), loadedImage.getHeight(),
-                    rotateMatrix, false);
-            loadedImage.recycle();
-
-            rotatedBitmap = scaledBitmap;
-
-            Uri outputFileUri = writeTempStateStoreBitmap(this, rotatedBitmap, null);
-            isTakePhoto = false;
-            isDetectFace = false;
-
-            if (mOptions.isDetectFace()) {
-                CropImage.activity(outputFileUri)
-                        .setMinCropResultSize(500, 500)
-                        //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-                        .setBorderLineColor(Color.BLUE)
-                        .setBorderCornerColor(Color.GREEN)
-                        .setGuidelines(CropImageView.Guidelines.ON)
-                        .setFixAspectRatio(mOptions.isFixAspectRatio())
-                        .start(this);
+            if (rotation > 0) {
+                Matrix rotateMatrix = new Matrix();
+                rotateMatrix.postRotate(rotation);
+                // Scale down to the output size
+                scaledBitmap = Bitmap.createBitmap(loadedImage, 0, 0,
+                        loadedImage.getWidth(), loadedImage.getHeight(),
+                        rotateMatrix, false);
             } else {
-                CropImage.activity(outputFileUri)
-                        .setMinCropResultSize(500, 500)
-                        //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-                        .setBorderLineColor(Color.BLUE)
-                        .setBorderCornerColor(Color.GREEN)
-                        .setGuidelines(CropImageView.Guidelines.ON)
-                        .setFixAspectRatio(mOptions.isFixAspectRatio())
-                        .start(this);
+                scaledBitmap = loadedImage;
             }
+            new SaveImageAsyncTask().execute(scaledBitmap, loadedImage);
+
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    public void launchInstance(Uri outputFileUri) {
+        if (!mOptions.isCrop()) {
+            addFragment(SaveImageFragment.newInstance(outputFileUri));
+            return;
+        }
+
+        if (mOptions.isDetectFace()) {
+            CropImage.activity(outputFileUri)
+                    .setMinCropResultSize(500, 500)
+                    //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                    .setBorderLineColor(Color.BLUE)
+                    .setBorderCornerColor(Color.GREEN)
+                    .setGuidelines(CropImageView.Guidelines.ON)
+                    .setFixAspectRatio(mOptions.isFixAspectRatio())
+                    .start(this);
+        } else {
+            CropImage.activity(outputFileUri)
+                    .setMinCropResultSize(500, 500)
+                    //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                    .setBorderLineColor(Color.BLUE)
+                    .setBorderCornerColor(Color.GREEN)
+                    .setGuidelines(CropImageView.Guidelines.ON)
+                    .setFixAspectRatio(mOptions.isFixAspectRatio())
+                    .start(this);
+        }
+    }
+
+    @SuppressLint("StaticFieldLeak")
+    class SaveImageAsyncTask extends AsyncTask<Bitmap, Void, Uri> {
+
+        @Override
+        protected Uri doInBackground(Bitmap... params) {
+            Uri outputFileUri = writeTempStateStoreBitmap(FaceTrackerActivity.this, params[0], null);
+            isTakePhoto = false;
+            isDetectFace = false;
+            params[1].recycle();
+            return outputFileUri;
+        }
+
+        @Override
+        protected void onPostExecute(Uri outputFileUri) {
+            super.onPostExecute(outputFileUri);
+            launchInstance(outputFileUri);
+        }
+    }
+
+    @SuppressLint("StaticFieldLeak")
+    class SaveImageInGaleryAsyncTask extends AsyncTask<String, Void, String> {
+
+        @Override
+        protected String doInBackground(String... params) {
+            String photoPath = "";
+            try {
+                photoPath = saveImageInGalery(params[0]);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return photoPath;
+        }
+
+        @Override
+        protected void onPostExecute(String photoPath) {
+            super.onPostExecute(photoPath);
+            mPhotoPath = photoPath;
+            Intent intent = new Intent();
+            intent.putExtra(PATH_IMAGE_KEY, mPhotoPath);
+            setResult(RESULT_OK, intent);
+            finish();
         }
     }
 
@@ -417,7 +466,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         }
         // save image into gallery
         ByteArrayOutputStream ostream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, ostream);
+        bitmap.compress(Bitmap.CompressFormat.JPEG, mOptions.getQuality(), ostream);
 
         FileOutputStream fout = new FileOutputStream(imageFile);
         fout.write(ostream.toByteArray());
@@ -450,7 +499,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             YuvImage yuv = new YuvImage(data, parameters.getPreviewFormat(), width, height, null);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            yuv.compressToJpeg(new Rect(0, 0, width, height), 100, out);
+            yuv.compressToJpeg(new Rect(0, 0, width, height), mOptions.getQuality(), out);
 
             byte[] bytes = out.toByteArray();
             final Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
@@ -476,7 +525,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                 needSave = false;
             }
             if (needSave) {
-                writeBitmapToUri(context, bitmap, uri, Bitmap.CompressFormat.JPEG, 95);
+                writeBitmapToUri(context, bitmap, uri, Bitmap.CompressFormat.JPEG, mOptions.getQuality());
             }
             return uri;
         } catch (Exception e) {
@@ -533,7 +582,6 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
         return b || c || super.onTouchEvent(e);
     }
-
 
 
     /**
@@ -924,7 +972,8 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
          */
         @Override
         public void onScaleEnd(ScaleGestureDetector detector) {
-            mCameraSource.doZoom(detector.getScaleFactor());
+            if (mCameraSource != null)
+                mCameraSource.doZoom(detector.getScaleFactor());
         }
     }
 
@@ -1074,31 +1123,6 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         if (faces.size() != 0) {
             log("Face found!!! " + faces.valueAt(0).getIsLeftEyeOpenProbability());
 
-            /*Face face = faces.valueAt(0);
-            // Draws a bounding box around the face.
-            FaceGraphic mFaceGraphic = new FaceGraphic(mGraphicOverlay);
-            mOverlayWidth = mGraphicOverlay.getWidth();
-            mOverlayHeight = mGraphicOverlay.getHeight();
-
-            float xOffset = mFaceGraphic.scaleX(face.getWidth() / 2.0f);
-            float yOffset = mFaceGraphic.scaleY(face.getHeight() / 2.0f);
-
-            // Draws a circle at the position of the detected face, with the face's track id below.
-            xImage = mFaceGraphic.translateX(face.getPosition().x + face.getWidth() / 2);
-            yImage = mFaceGraphic.translateY(face.getPosition().y + face.getHeight() / 2);
-            float left = xImage - xOffset;
-            float top = yImage - yOffset;
-            float right = xImage + xOffset;
-            float bottom = yImage + yOffset;
-            widthImage = (int) (right - left);
-            int secondWidth = (int) (bottom - top);
-            if (widthImage < secondWidth)
-                widthImage = secondWidth;
-            log(String.format("medidas widthImage: %s, x: %s, y: %s",
-                    widthImage, xImage, yImage));*/
-           /* ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-            byte[] byteArray = stream.toByteArray();*/
             return true;
         } else {
             Toast.makeText(this, "Ningun rostro detectado", Toast.LENGTH_SHORT).show();
@@ -1151,30 +1175,6 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             mOverlay.add(mFaceGraphic);
             mFaceGraphic.updateFace(face);
             isDetectFace = true;
-
-            if (isTakePhoto) {
-                // Draws a bounding box around the face.
-                float xOffset = mFaceGraphic.scaleX(face.getWidth() / 1.7f);
-                float yOffset = mFaceGraphic.scaleY(face.getHeight() / 1.7f);
-
-                // Draws a circle at the position of the detected face, with the face's track id below.
-                float xImage = mFaceGraphic.translateX(face.getPosition().x + face.getWidth() / 2);
-                float yImage = mFaceGraphic.translateY(face.getPosition().y + face.getHeight() / 2);
-
-                float left = xImage - xOffset;
-                float top = yImage - yOffset;
-                float right = xImage + xOffset;
-                float bottom = yImage + yOffset;
-
-
-                widthImage = (int) (right - left);
-                int secondWidth = (int) (bottom - top);
-                if (widthImage < secondWidth)
-                    widthImage = secondWidth;
-                log(String.format("medidas widthImage: %s, x: %s, y: %s",
-                        widthImage, xImage, yImage));
-                //log(String.format("overlay with %s, height %s", mOverlay.getWidth(), mOverlay.getHeight()));
-            }
         }
 
         /**

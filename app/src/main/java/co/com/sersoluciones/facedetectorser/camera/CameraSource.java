@@ -51,8 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static co.com.sersoluciones.loggerser.DebugLog.logE;
-import static co.com.sersoluciones.loggerser.DebugLog.logW;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logE;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 
 
 // Note: This requires Google Play Services 8.1 or higher, due to using indirect byte buffers for
@@ -512,7 +512,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
     public void takePicture(ShutterCallback shutter, PictureCallback jpeg) {
         synchronized (mCameraLock) {
             if (mCamera != null) {
-                logE("entra aca camera source take photno");
+
                 PictureStartCallback startCallback = new PictureStartCallback();
                 startCallback.mDelegate = shutter;
                 PictureDoneCallback doneCallback = new PictureDoneCallback();
@@ -771,7 +771,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
         }
         Size pictureSize = sizePair.pictureSize();
         mPreviewSize = sizePair.previewSize();
-
+        logW("mPreviewSize: " + mPreviewSize.getWidth() + ", " + mPreviewSize.getHeight());
         int[] previewFpsRange = selectPreviewFpsRange(camera, mRequestedFps);
         if (previewFpsRange == null) {
             throw new RuntimeException("Could not find suitable preview frames per second range.");

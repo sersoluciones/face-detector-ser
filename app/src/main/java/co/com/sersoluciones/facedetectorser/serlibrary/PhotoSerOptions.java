@@ -12,17 +12,23 @@ public class PhotoSerOptions implements Parcelable {
     private boolean isDetectFace;
     private boolean fixAspectRatio;
     private boolean saveGalery;
+    private boolean isCrop;
+    private int quality;
 
     public PhotoSerOptions() {
         isDetectFace = false;
         fixAspectRatio = true;
         saveGalery = false;
+        isCrop = true;
+        quality = 50;
     }
 
     protected PhotoSerOptions(Parcel in) {
         isDetectFace = in.readByte() != 0;
         fixAspectRatio = in.readByte() != 0;
         saveGalery = in.readByte() != 0;
+        isCrop = in.readByte() != 0;
+        quality = in.readInt();
     }
 
     public static final Creator<PhotoSerOptions> CREATOR = new Creator<PhotoSerOptions>() {
@@ -47,6 +53,8 @@ public class PhotoSerOptions implements Parcelable {
         parcel.writeByte((byte) (isDetectFace ? 1 : 0));
         parcel.writeByte((byte) (fixAspectRatio ? 1 : 0));
         parcel.writeByte((byte) (saveGalery ? 1 : 0));
+        parcel.writeByte((byte) (isCrop ? 1 : 0));
+        parcel.writeInt(quality);
     }
 
     public boolean isDetectFace() {
@@ -71,5 +79,21 @@ public class PhotoSerOptions implements Parcelable {
 
     public void setSaveGalery(boolean saveGalery) {
         this.saveGalery = saveGalery;
+    }
+
+    public boolean isCrop() {
+        return isCrop;
+    }
+
+    public void setCrop(boolean crop) {
+        isCrop = crop;
+    }
+
+    public int getQuality() {
+        return quality;
+    }
+
+    public void setQuality(int quality) {
+        this.quality = quality;
     }
 }

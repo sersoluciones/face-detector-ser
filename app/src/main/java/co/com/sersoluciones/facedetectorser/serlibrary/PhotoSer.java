@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
 
 import co.com.sersoluciones.facedetectorser.FaceTrackerActivity;
 
@@ -81,6 +82,33 @@ public final class PhotoSer {
         }
 
         /**
+         * the option to fix aspect.<br>
+         * <i>Default: true</i>
+         */
+        public ActivityBuilder setFixAspectRatio(boolean fixAspectRatio) {
+            mOptions.setFixAspectRatio(fixAspectRatio);
+            return this;
+        }
+
+        /**
+         * the option to crop image.<br>
+         * <i>Default: true</i>
+         */
+        public ActivityBuilder setCrop(boolean isCrop) {
+            mOptions.setCrop(isCrop);
+            return this;
+        }
+
+        /**
+         * the option to quality image.<br>
+         * <i>Default: 50</i>
+         */
+        public ActivityBuilder setQuality(int quality) {
+            mOptions.setQuality(quality);
+            return this;
+        }
+
+        /**
          * Start {@link FaceTrackerActivity}.
          *
          * @param activity activity to receive result
@@ -88,6 +116,16 @@ public final class PhotoSer {
         public void start(@NonNull Activity activity) {
             //mOptions.validate();
             activity.startActivityForResult(getIntent(activity), SER_IMAGE_ACTIVITY_REQUEST_CODE);
+        }
+
+        /**
+         * Start {@link FaceTrackerActivity}.
+         *
+         * @param fragment fragment to receive result
+         */
+        public void start(@NonNull Fragment fragment, @NonNull Activity activity) {
+
+            fragment.startActivityForResult(getIntent(activity), SER_IMAGE_ACTIVITY_REQUEST_CODE);
         }
     }
 }

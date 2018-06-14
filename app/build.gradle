@@ -8,7 +8,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 27
         versionCode 1
-        versionName "1.0"
+        versionName "1.1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -28,5 +28,4 @@ dependencies {
     compile 'com.google.android.gms:play-services-vision:15.0.2'
 
     compile 'com.theartofdev.edmodo:android-image-cropper:2.6.0'
-    implementation 'com.github.sersoluciones:logger:v1.2'
 }
