@@ -18,11 +18,7 @@ Copy
 Step 2. Add the dependency
 
 	dependencies {
-	    implementation 'com.android.support:appcompat-v7:27.1.1'
-        implementation 'com.android.support:design:27.1.1'
-        implementation 'com.android.support:support-v4:27.1.1'
-        
-        implementation 'com.github.sersoluciones:face-detector-ser:v1.1.0'
+        implementation 'com.github.sersoluciones:face-detector-ser:v1.1.1'
 	}
 
 In the manifest put:
@@ -36,7 +32,8 @@ In the manifest put:
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
         
     <application
-        android:label="@string/app_name"
+        ...
+        android:largeHeap="true"
         android:hardwareAccelerated="false"
         ...>
                 
