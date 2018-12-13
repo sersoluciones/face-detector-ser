@@ -47,6 +47,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -752,6 +754,58 @@ public class CameraSource implements Camera.AutoFocusCallback {
         return mCamera;
     }
 
+
+    private SizePair getBestFrameSize(Camera mCamera) {
+
+        Camera.Parameters parameters = mCamera.getParameters();
+        List<Camera.Size> supportedPreviewSizes =
+                parameters.getSupportedPreviewSizes();
+        List<Camera.Size> supportedPictureSizes =
+                parameters.getSupportedPictureSizes();
+//        for (Camera.Size size : supportedPictureSizes) {
+//            Log.d("DataSymbolDecoder", "SupportedPictureSize width=" + size.width + ", height=" + size.height);
+//        }
+        SizePair _result = null;
+
+        List<SizePair> validPreviewSizes = new ArrayList<>();
+        for (Camera.Size previewSize : supportedPreviewSizes) {
+            for (Camera.Size pictureSize : supportedPictureSizes) {
+                if (pictureSize.width == previewSize.width) {
+                    validPreviewSizes.add(new SizePair(previewSize, pictureSize));
+                    break;
+                }
+            }
+        }
+        List<SizePair> spl = validPreviewSizes; //generateValidPreviewSizeList(mCamera);
+
+        //sort the list
+        Collections.sort(spl, new Comparator() {
+            public int compare(Object o1, Object o2) {
+                SizePair _o1 = (SizePair) o1;
+                SizePair _o2 = (SizePair) o2;
+                if (_o1.previewSize().getWidth() == _o2.previewSize().getWidth())
+                    return 0;
+                else if (_o1.previewSize().getWidth() < _o2.previewSize().getWidth())
+                    return -1;
+                else
+                    return 1;
+            }
+        });
+
+        for (SizePair size : spl) {
+            int width = size.previewSize().getWidth();
+            int height = size.previewSize().getHeight();
+            Log.d("DataSymbolDecoder", "SupportedPreviewSize width=" + width + "height=" + height);
+            Log.d("DataSymbolDecoder", "SupportedPictureSize width=" + size.pictureSize().getWidth() + "height=" + size.pictureSize().getHeight());
+            _result = size;
+            if (width >= 640 || height >= 480)
+                break;
+        }
+
+        return _result;
+    }
+
+
     /**
      * Opens the camera and applies the user settings.
      *
@@ -765,11 +819,14 @@ public class CameraSource implements Camera.AutoFocusCallback {
         }
         Camera camera = Camera.open(requestedCameraId);
 
-        SizePair sizePair = selectSizePair(camera, mRequestedPreviewWidth, mRequestedPreviewHeight);
+        //SizePair sizePair = selectSizePair(camera, bestPreviewSize.width, bestPreviewSize.height);
+        SizePair sizePair = getBestFrameSize(camera);
+        // SizePair sizePair = selectSizePair(camera, mRequestedPreviewWidth, mRequestedPreviewHeight);
         if (sizePair == null) {
             throw new RuntimeException("Could not find suitable preview size.");
         }
         Size pictureSize = sizePair.pictureSize();
+
         mPreviewSize = sizePair.previewSize();
         logW("mPreviewSize: " + mPreviewSize.getWidth() + ", " + mPreviewSize.getHeight());
         int[] previewFpsRange = selectPreviewFpsRange(camera, mRequestedFps);
@@ -780,6 +837,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
         Camera.Parameters parameters = camera.getParameters();
 
         if (pictureSize != null) {
+            logW("mpictureSize: " + pictureSize.getWidth() + ", " + pictureSize.getHeight());
             parameters.setPictureSize(pictureSize.getWidth(), pictureSize.getHeight());
         }
 

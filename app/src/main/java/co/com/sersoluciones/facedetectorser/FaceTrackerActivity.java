@@ -93,8 +93,8 @@ import co.com.sersoluciones.facedetectorser.views.GraphicOverlay;
 import static co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer.PHOTO_SER_EXTRA_BUNDLE;
 import static co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer.PHOTO_SER_EXTRA_OPTIONS;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.log;
-import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logE;
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 
 /**
  * Activity for the face tracker app.  This app detects faces with the rear facing camera, and draws
@@ -296,11 +296,15 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                 mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
             }
         });
+        buttonAttachGalery.setEnabled(!show);
+        buttonTakePhoto.setEnabled(!show);
     }
 
     private void takePhoto() {
 
+        if (isTakePhoto || mCameraSource == null) return;
         if (!mOptions.isDetectFace()) {
+            isTakePhoto = true;
             mCameraSource.takePicture(shutterCallback, pictureCallback);
             showProgress(true);
         } else {
@@ -338,7 +342,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             mPreview.stop();
 
         //decodeBytes(bytes);
-        showProgress(false);
+        // showProgress(false);
         File imageFile;
         int rotation = 0;
         if (toggle)
@@ -410,6 +414,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         protected void onPostExecute(Uri outputFileUri) {
             super.onPostExecute(outputFileUri);
             launchInstance(outputFileUri);
+            showProgress(false);
         }
     }
 
@@ -434,6 +439,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             Intent intent = new Intent();
             intent.putExtra(PATH_IMAGE_KEY, mPhotoPath);
             setResult(RESULT_OK, intent);
+            showProgress(false);
             finish();
         }
     }
@@ -678,6 +684,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             mCameraSource.release();
             mCameraSource = null;
         }
+        isTakePhoto = false;
     }
 
     /**
@@ -1042,7 +1049,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                             //addFragment(SaveImageFragment.newInstance(mPhotoPath));
                             // start picker to get image for cropping and then use the image in cropping activity
                             CropImage.activity(Uri.fromFile(mCurrentPhoto))
-                                    .setMinCropResultSize(500, 500)
+                                    //.setMinCropResultSize(10, 10)
                                     //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
                                     .setBorderLineColor(Color.BLUE)
                                     .setBorderCornerColor(Color.GREEN)
@@ -1052,7 +1059,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                         }
                     } else {
                         CropImage.activity(Uri.fromFile(mCurrentPhoto))
-                                .setMinCropResultSize(500, 500)
+                                //.setMinCropResultSize(100, 10)
                                 //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
                                 .setBorderLineColor(Color.BLUE)
                                 .setBorderCornerColor(Color.GREEN)

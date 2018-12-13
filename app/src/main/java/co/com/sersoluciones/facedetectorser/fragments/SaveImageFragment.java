@@ -14,12 +14,14 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -120,10 +122,26 @@ public class SaveImageFragment extends Fragment {
 
         Bitmap bitmap;
         if (!mPhotoPath.isEmpty()) {
+            // bitmap = BitmapFactory.decodeFile(mPhotoPath);
+
+            //BitmapFactory.Options options = new BitmapFactory.Options();
+            //options.inSampleSize = 2;
             bitmap = BitmapFactory.decodeFile(mPhotoPath);
-            imagePreview.setImageBitmap(bitmap);
+            ByteArrayOutputStream ostream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, ostream);
+            Bitmap decoded = BitmapFactory.decodeStream(new ByteArrayInputStream(ostream.toByteArray()));
+            Log.w("SAVEIMAGEFRAGMENT", "Width: " + decoded.getWidth() + ", Height: " + decoded.getHeight());
+            imagePreview.setImageBitmap(decoded);
         } else {
-            imagePreview.setImageURI(uriImage);
+
+            //BitmapFactory.Options options = new BitmapFactory.Options();
+            //options.inSampleSize = 2;
+            bitmap = BitmapFactory.decodeFile(uriImage.getPath());
+            ByteArrayOutputStream ostream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, ostream);
+            Bitmap decoded = BitmapFactory.decodeStream(new ByteArrayInputStream(ostream.toByteArray()));
+            Log.w("SAVEIMAGEFRAGMENT", "Width: " + decoded.getWidth() + ", Height: " + decoded.getHeight());
+            imagePreview.setImageBitmap(decoded);
             if (mPhotoPath.isEmpty())
                 mPhotoPath = uriImage.getPath();
             //bitmap = BitmapFactory.decodeFile(mPhotoPath);
@@ -141,8 +159,8 @@ public class SaveImageFragment extends Fragment {
         showProgress(true);
         if ((getActivity()) != null) {
             if (rotateImage > 0) {
-               new SaveImageAsyncTask().execute();
-            }else{
+                new SaveImageAsyncTask().execute();
+            } else {
                 ((FaceTrackerActivity) getActivity()).returnURIImage(mPhotoPath);
             }
         }

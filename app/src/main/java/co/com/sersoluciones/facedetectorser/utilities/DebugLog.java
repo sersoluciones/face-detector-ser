@@ -9,8 +9,10 @@ import android.util.Log;
  **/
 public class DebugLog {
 
+    public static final boolean DEBUG_VERSION = true;
+
     public static void log(String message) {
-        if (ConstantesSER.DEBUG_VERSION) {
+        if (DEBUG_VERSION) {
             String fullClassName = Thread.currentThread().getStackTrace()[3].getClassName();
             String className = fullClassName.substring(fullClassName.lastIndexOf(".") + 1);
             String methodName = Thread.currentThread().getStackTrace()[3].getMethodName();
@@ -21,7 +23,7 @@ public class DebugLog {
     }
 
     public static void logE(String message) {
-        if (ConstantesSER.DEBUG_VERSION) {
+        if (DEBUG_VERSION) {
             String fullClassName = Thread.currentThread().getStackTrace()[3].getClassName();
             String className = fullClassName.substring(fullClassName.lastIndexOf(".") + 1);
             String methodName = Thread.currentThread().getStackTrace()[3].getMethodName();
@@ -32,7 +34,7 @@ public class DebugLog {
     }
 
     public static void logW(String message) {
-        if (ConstantesSER.DEBUG_VERSION) {
+        if (DEBUG_VERSION) {
             String fullClassName = Thread.currentThread().getStackTrace()[3].getClassName();
             String className = fullClassName.substring(fullClassName.lastIndexOf(".") + 1);
             String methodName = Thread.currentThread().getStackTrace()[3].getMethodName();
