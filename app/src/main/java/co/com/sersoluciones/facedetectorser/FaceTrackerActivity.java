@@ -27,6 +27,7 @@ import android.app.ProgressDialog;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -152,7 +153,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         //getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         setContentView(R.layout.face_tracker);
-        //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         Bundle bundle = getIntent().getBundleExtra(PHOTO_SER_EXTRA_BUNDLE);
         mOptions = bundle.getParcelable(PHOTO_SER_EXTRA_OPTIONS);
@@ -235,9 +236,21 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     }
 
     public void attachImageFromGalery() {
-        Intent galleryIntent = new Intent(Intent.ACTION_PICK,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        this.startActivityForResult(galleryIntent, REQUEST_IMAGE_SELECTOR);
+        try {
+            Intent galleryIntent = new Intent(Intent.ACTION_PICK,
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            this.startActivityForResult(galleryIntent, REQUEST_IMAGE_SELECTOR);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Intent getIntent = new Intent(Intent.ACTION_GET_CONTENT);
+            getIntent.setType("image/*");
+            Intent pickIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            pickIntent.setType("image/*");
+            Intent chooserIntent = Intent.createChooser(getIntent, "Select Image");
+            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{pickIntent});
+
+            startActivityForResult(chooserIntent, 200);
+        }
     }
 
     private void addFragment(Fragment fragment) {
@@ -343,10 +356,8 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
         //decodeBytes(bytes);
         // showProgress(false);
-        File imageFile;
-        int rotation = 0;
-        if (toggle)
-            rotation = 360;
+
+        int rotation = mCameraSource.getRotation();
         try {
             // convert byte array into bitmap
             Bitmap loadedImage;
@@ -379,7 +390,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
         if (mOptions.isDetectFace()) {
             CropImage.activity(outputFileUri)
-                    .setMinCropResultSize(500, 500)
+                    .setMinCropResultSize(100, 100)
                     //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
                     .setBorderLineColor(Color.BLUE)
                     .setBorderCornerColor(Color.GREEN)
@@ -388,7 +399,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                     .start(this);
         } else {
             CropImage.activity(outputFileUri)
-                    .setMinCropResultSize(500, 500)
+                    .setMinCropResultSize(100, 100)
                     //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
                     .setBorderLineColor(Color.BLUE)
                     .setBorderCornerColor(Color.GREEN)
@@ -1043,30 +1054,30 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                     }
                     mCurrentPhoto = new File(cursor.getString(columnIndex));
 
-                    if (mOptions.isDetectFace()) {
-                        if (isFoundFace(BitmapFactory.decodeFile(mCurrentPhoto.getPath()))) {
-                            mPhotoPath = mCurrentPhoto.getPath();
-                            //addFragment(SaveImageFragment.newInstance(mPhotoPath));
-                            // start picker to get image for cropping and then use the image in cropping activity
-                            CropImage.activity(Uri.fromFile(mCurrentPhoto))
-                                    //.setMinCropResultSize(10, 10)
-                                    //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-                                    .setBorderLineColor(Color.BLUE)
-                                    .setBorderCornerColor(Color.GREEN)
-                                    .setGuidelines(CropImageView.Guidelines.ON)
-                                    .setFixAspectRatio(mOptions.isFixAspectRatio())
-                                    .start(this);
-                        }
-                    } else {
-                        CropImage.activity(Uri.fromFile(mCurrentPhoto))
-                                //.setMinCropResultSize(100, 10)
-                                //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-                                .setBorderLineColor(Color.BLUE)
-                                .setBorderCornerColor(Color.GREEN)
-                                .setGuidelines(CropImageView.Guidelines.ON)
-                                .setFixAspectRatio(mOptions.isFixAspectRatio())
-                                .start(this);
-                    }
+//                    if (mOptions.isDetectFace()) {
+//                        if (isFoundFace(BitmapFactory.decodeFile(mCurrentPhoto.getPath()))) {
+//                            mPhotoPath = mCurrentPhoto.getPath();
+//                            //addFragment(SaveImageFragment.newInstance(mPhotoPath));
+//                            // start picker to get image for cropping and then use the image in cropping activity
+//                            CropImage.activity(Uri.fromFile(mCurrentPhoto))
+//                                    //.setMinCropResultSize(10, 10)
+//                                    //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+//                                    .setBorderLineColor(Color.BLUE)
+//                                    .setBorderCornerColor(Color.GREEN)
+//                                    .setGuidelines(CropImageView.Guidelines.ON)
+//                                    .setFixAspectRatio(mOptions.isFixAspectRatio())
+//                                    .start(this);
+//                        }
+//                    } else {
+                    CropImage.activity(Uri.fromFile(mCurrentPhoto))
+                            .setMinCropResultSize(100, 100)
+                            //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                            .setBorderLineColor(Color.BLUE)
+                            .setBorderCornerColor(Color.GREEN)
+                            .setGuidelines(CropImageView.Guidelines.ON)
+                            .setFixAspectRatio(mOptions.isFixAspectRatio())
+                            .start(this);
+//                    }
                     cursor.close();
                 } else if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
 
@@ -1074,20 +1085,29 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                     Uri uri = result.getUri();
                     log("entra aca CROP_IMAGE_ACTIVITY_REQUEST_CODE " + result.getUri());
 
-                    Bitmap bitmap = null;
-                    try {
-                        if (mOptions.isDetectFace()) {
-                            bitmap = BitmapFactory.decodeStream(
-                                    getContentResolver().openInputStream(uri));
-                            log("imagen decodificada en bitmap");
-                            if (isFoundFace(bitmap))
-                                addFragment(SaveImageFragment.newInstance(uri.getPath()));
-                        } else {
-                            addFragment(SaveImageFragment.newInstance(uri));
-                        }
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
+//                        if (mOptions.isDetectFace()) {
+//                            bitmap = BitmapFactory.decodeStream(
+//                                    getContentResolver().openInputStream(uri));
+//                            log("imagen decodificada en bitmap");
+//                            if (isFoundFace(bitmap))
+//                                addFragment(SaveImageFragment.newInstance(uri.getPath()));
+//                        } else {
+                    addFragment(SaveImageFragment.newInstance(uri));
+//                        }
+
+                } else if (requestCode == 200) {
+
+                    Uri selectedimg = data.getData();
+                    if (selectedimg == null) return;
+
+                    CropImage.activity(selectedimg)
+                            .setMinCropResultSize(100, 100)
+                            //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                            .setBorderLineColor(Color.BLUE)
+                            .setBorderCornerColor(Color.GREEN)
+                            .setGuidelines(CropImageView.Guidelines.ON)
+                            .setFixAspectRatio(mOptions.isFixAspectRatio())
+                            .start(this);
                 }
                 break;
             case CropImage.CROP_IMAGE_ACTIVITY_RESULT_ERROR_CODE:
@@ -1096,6 +1116,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         }
     }
 
+    @SuppressWarnings("unused")
     private boolean isFoundFace(Bitmap bitmap) {
 
         //Bitmap icon = BitmapFactory.decodeResource(getResources(),R.drawable.DSC_1344);

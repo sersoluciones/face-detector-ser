@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.log;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logE;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 
@@ -99,6 +100,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
      * ratio is less than this tolerance, they are considered to be the same aspect ratio.
      */
     private static final float ASPECT_RATIO_TOLERANCE = 0.01f;
+    private int mAngle;
 
 
     @StringDef({
@@ -820,8 +822,8 @@ public class CameraSource implements Camera.AutoFocusCallback {
         Camera camera = Camera.open(requestedCameraId);
 
         //SizePair sizePair = selectSizePair(camera, bestPreviewSize.width, bestPreviewSize.height);
-        SizePair sizePair = getBestFrameSize(camera);
-        // SizePair sizePair = selectSizePair(camera, mRequestedPreviewWidth, mRequestedPreviewHeight);
+        //SizePair sizePair = getBestFrameSize(camera);
+        SizePair sizePair = selectSizePair(camera, mRequestedPreviewWidth, mRequestedPreviewHeight);
         if (sizePair == null) {
             throw new RuntimeException("Could not find suitable preview size.");
         }
@@ -839,6 +841,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
         if (pictureSize != null) {
             logW("mpictureSize: " + pictureSize.getWidth() + ", " + pictureSize.getHeight());
             parameters.setPictureSize(pictureSize.getWidth(), pictureSize.getHeight());
+            //parameters.setPictureSize(mRequestedPreviewWidth, mRequestedPreviewHeight);
         }
 
         parameters.setPreviewSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -986,6 +989,21 @@ public class CameraSource implements Camera.AutoFocusCallback {
                 parameters.getSupportedPreviewSizes();
         List<Camera.Size> supportedPictureSizes =
                 parameters.getSupportedPictureSizes();
+
+        //sort the list
+        Collections.sort(supportedPictureSizes, new Comparator() {
+            public int compare(Object o1, Object o2) {
+                Camera.Size _o1 = (Camera.Size) o1;
+                Camera.Size _o2 = (Camera.Size) o2;
+                if (_o1.width == _o2.width)
+                    return 0;
+                else if (_o1.width < _o2.width)
+                    return -1;
+                else
+                    return 1;
+            }
+        });
+
         List<SizePair> validPreviewSizes = new ArrayList<>();
         for (Camera.Size previewSize : supportedPreviewSizes) {
             float previewAspectRatio = (float) previewSize.width / (float) previewSize.height;
@@ -993,7 +1011,11 @@ public class CameraSource implements Camera.AutoFocusCallback {
             // By looping through the picture sizes in order, we favor the higher resolutions.
             // We choose the highest resolution in order to support taking the full resolution
             // picture later.
-            for (Camera.Size pictureSize : supportedPictureSizes) {
+            for (int i = 0; i < supportedPictureSizes.size(); i++) {
+                //log("width: " + pictureSize.width + ", height: " + pictureSize.height);
+                if (supportedPictureSizes.get(i).width < 700) continue;
+                Camera.Size pictureSize = supportedPictureSizes.get(i);
+                if (pictureSize.width > 1000) pictureSize = supportedPictureSizes.get(i - 1);
                 float pictureAspectRatio = (float) pictureSize.width / (float) pictureSize.height;
                 if (Math.abs(previewAspectRatio - pictureAspectRatio) < ASPECT_RATIO_TOLERANCE) {
                     validPreviewSizes.add(new SizePair(previewSize, pictureSize));
@@ -1001,6 +1023,11 @@ public class CameraSource implements Camera.AutoFocusCallback {
                 }
             }
         }
+
+//        for (SizePair sizePair : validPreviewSizes) {
+//            log("previewSize: " + sizePair.previewSize().getWidth() + ", " + sizePair.previewSize().getHeight());
+//            log("pictureSize: " + sizePair.pictureSize().getWidth() + ", " + sizePair.pictureSize().getHeight());
+//        }
 
         // If there are no picture sizes with the same aspect ratio as any preview sizes, allow all
         // of the preview sizes and hope that the camera can handle it.  Probably unlikely, but we
@@ -1049,6 +1076,10 @@ public class CameraSource implements Camera.AutoFocusCallback {
         return selectedFpsRange;
     }
 
+    public int getRotation() {
+        return mAngle;
+    }
+
     /**
      * Calculates the correct rotation for the given camera id and sets the rotation in the
      * parameters.  It also sets the camera's display orientation and rotation.
@@ -1090,10 +1121,10 @@ public class CameraSource implements Camera.AutoFocusCallback {
             angle = (cameraInfo.orientation - degrees + 360) % 360;
             displayAngle = angle;
         }
-
+        Log.w(TAG, "degrees: " + degrees + ", angle: " + angle + ", displayAngle: " + displayAngle);
         // This corresponds to the rotation constants in {@link Frame}.
         mRotation = angle / 90;
-
+        mAngle = angle;
         camera.setDisplayOrientation(displayAngle);
         parameters.setRotation(angle);
     }
