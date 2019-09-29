@@ -26,10 +26,10 @@ import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.os.Build;
 import android.os.SystemClock;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.RequiresPermission;
-import android.support.annotation.StringDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresPermission;
+import androidx.annotation.StringDef;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -53,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.log;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logE;
 import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 
@@ -302,7 +301,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
     /**
      * Callback interface used to notify on completion of camera auto focus.
      */
-    public interface AutoFocusCallback {
+    interface AutoFocusCallback {
         /**
          * Called when the camera auto focus completes.  If the camera
          * does not support auto-focus and autoFocus is called,
@@ -325,7 +324,7 @@ public class CameraSource implements Camera.AutoFocusCallback {
      * Camera.Parameters#FOCUS_MODE_CONTINUOUS_PICTURE}. Applications can show
      * autofocus animation based on this.</p>
      */
-    public interface AutoFocusMoveCallback {
+    interface AutoFocusMoveCallback {
         /**
          * Called when the camera auto focus starts or stops.
          *
@@ -389,10 +388,10 @@ public class CameraSource implements Camera.AutoFocusCallback {
      */
     @SuppressLint("MissingPermission")
     @RequiresPermission(Manifest.permission.CAMERA)
-    public CameraSource start(SurfaceHolder surfaceHolder) throws IOException {
+    public void start(SurfaceHolder surfaceHolder) throws IOException {
         synchronized (mCameraLock) {
             if (mCamera != null) {
-                return this;
+                return;
             }
 
             mCamera = createCamera();
@@ -404,7 +403,6 @@ public class CameraSource implements Camera.AutoFocusCallback {
                 mProcessingThread.start();
             }
         }
-        return this;
     }
 
     /**
@@ -471,17 +469,17 @@ public class CameraSource implements Camera.AutoFocusCallback {
         return mFacing;
     }
 
-    public int doZoom(float scale) {
+    public void doZoom(float scale) {
         synchronized (mCameraLock) {
             if (mCamera == null) {
-                return 0;
+                return;
             }
             int currentZoom = 0;
             int maxZoom;
             Camera.Parameters parameters = mCamera.getParameters();
             if (!parameters.isZoomSupported()) {
                 Log.w(TAG, "Zoom is not supported on this device");
-                return currentZoom;
+                return;
             }
             maxZoom = parameters.getMaxZoom();
 
@@ -500,7 +498,6 @@ public class CameraSource implements Camera.AutoFocusCallback {
             }
             parameters.setZoom(currentZoom);
             mCamera.setParameters(parameters);
-            return currentZoom;
         }
     }
 
@@ -956,15 +953,15 @@ public class CameraSource implements Camera.AutoFocusCallback {
         private Size mPreview;
         private Size mPicture;
 
-        public SizePair(Camera.Size previewSize,
-                        Camera.Size pictureSize) {
+        SizePair(Camera.Size previewSize,
+                 Camera.Size pictureSize) {
             mPreview = new Size(previewSize.width, previewSize.height);
             if (pictureSize != null) {
                 mPicture = new Size(pictureSize.width, pictureSize.height);
             }
         }
 
-        public Size previewSize() {
+        Size previewSize() {
             return mPreview;
         }
 

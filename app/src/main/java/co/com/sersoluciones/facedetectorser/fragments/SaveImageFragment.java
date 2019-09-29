@@ -10,10 +10,10 @@ import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.FloatingActionButton;
-import android.support.v4.app.Fragment;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import androidx.fragment.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,12 +36,12 @@ import co.com.sersoluciones.facedetectorser.R;
  **/
 public class SaveImageFragment extends Fragment {
 
-    Button previousButton;
-    Button submitButton;
+    private Button previousButton;
+    private Button submitButton;
 
     private static final String ARG_PHOTO_PATH = "mPhotoPath";
     private static final String ARG_URI = "uri_image";
-    ImageView imagePreview;
+    private ImageView imagePreview;
     private String mPhotoPath;
     private Uri uriImage;
     private Bitmap mBitmap;
@@ -155,7 +155,7 @@ public class SaveImageFragment extends Fragment {
         super.onDestroyView();
     }
 
-    public void saveImage() {
+    private void saveImage() {
         showProgress(true);
         if ((getActivity()) != null) {
             if (rotateImage > 0) {
@@ -166,13 +166,13 @@ public class SaveImageFragment extends Fragment {
         }
     }
 
-    public void removeFragment() {
+    private void removeFragment() {
         if (getActivity() != null) {
             ((FaceTrackerActivity) getActivity()).removeFragment();
         }
     }
 
-    public void rotateLogo() {
+    private void rotateLogo() {
         showProgress(true);
         rotateImage += 90;
         if (rotateImage == 360) rotateImage = 0;

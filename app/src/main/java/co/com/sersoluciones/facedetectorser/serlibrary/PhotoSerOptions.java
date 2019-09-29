@@ -23,7 +23,7 @@ public class PhotoSerOptions implements Parcelable {
         quality = 50;
     }
 
-    protected PhotoSerOptions(Parcel in) {
+    private PhotoSerOptions(Parcel in) {
         isDetectFace = in.readByte() != 0;
         fixAspectRatio = in.readByte() != 0;
         saveGalery = in.readByte() != 0;

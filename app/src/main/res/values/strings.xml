@@ -8,9 +8,6 @@
 
     <string name="permission_camera_rationale">camara desactivada</string>
     <string name="no_camera_permission">No tiene permisos para ver la camera</string>
-    <string name="low_storage_error">error almacenamiento</string>
-    <string name="use_flash">usar flash</string>
-    <string name="auto_focus">auto focus</string>
 
     <string name="crop_image_activity_title" translatable="false">Personalizar Imagen</string>
     <string name="crop_image_menu_rotate_right" translatable="false">Rotar</string>

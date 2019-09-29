@@ -61,7 +61,7 @@ public class GraphicOverlay<T extends GraphicOverlay.Graphic> extends View {
     public static abstract class Graphic {
         private GraphicOverlay mOverlay;
 
-        public Graphic(GraphicOverlay overlay) {
+        protected Graphic(GraphicOverlay overlay) {
             mOverlay = overlay;
         }
 
@@ -77,20 +77,20 @@ public class GraphicOverlay<T extends GraphicOverlay.Graphic> extends View {
          *
          * @param canvas drawing canvas
          */
-        public abstract void draw(Canvas canvas);
+        protected abstract void draw(Canvas canvas);
 
         /**
          * Adjusts a horizontal value of the supplied value from the preview scale to the view
          * scale.
          */
-        public float scaleX(float horizontal) {
+        protected float scaleX(float horizontal) {
             return horizontal * mOverlay.mWidthScaleFactor;
         }
 
         /**
          * Adjusts a vertical value of the supplied value from the preview scale to the view scale.
          */
-        public float scaleY(float vertical) {
+        protected float scaleY(float vertical) {
             return vertical * mOverlay.mHeightScaleFactor;
         }
 
@@ -98,7 +98,7 @@ public class GraphicOverlay<T extends GraphicOverlay.Graphic> extends View {
          * Adjusts the x coordinate from the preview's coordinate system to the view coordinate
          * system.
          */
-        public float translateX(float x) {
+        protected float translateX(float x) {
             if (mOverlay.mFacing == CameraSource.CAMERA_FACING_FRONT) {
                 return mOverlay.getWidth() - scaleX(x);
             } else {
@@ -110,11 +110,11 @@ public class GraphicOverlay<T extends GraphicOverlay.Graphic> extends View {
          * Adjusts the y coordinate from the preview's coordinate system to the view coordinate
          * system.
          */
-        public float translateY(float y) {
+        protected float translateY(float y) {
             return scaleY(y);
         }
 
-        public void postInvalidate() {
+        protected void postInvalidate() {
             mOverlay.postInvalidate();
         }
     }

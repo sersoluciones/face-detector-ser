@@ -9,7 +9,7 @@ import android.util.Log;
  **/
 public class DebugLog {
 
-    public static final boolean DEBUG_VERSION = true;
+    private static final boolean DEBUG_VERSION = true;
 
     public static void log(String message) {
         if (DEBUG_VERSION) {

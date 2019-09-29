@@ -45,15 +45,19 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
+
+import androidx.annotation.NonNull;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
+
+import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AppCompatActivity;
+
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseArray;
@@ -78,6 +82,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.sql.Timestamp;
@@ -88,6 +93,7 @@ import co.com.sersoluciones.facedetectorser.camera.CameraSource;
 import co.com.sersoluciones.facedetectorser.camera.FaceGraphic;
 import co.com.sersoluciones.facedetectorser.fragments.SaveImageFragment;
 import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSerOptions;
+import co.com.sersoluciones.facedetectorser.utilities.RealPathUtil;
 import co.com.sersoluciones.facedetectorser.views.CameraSourcePreview;
 import co.com.sersoluciones.facedetectorser.views.GraphicOverlay;
 
@@ -100,7 +106,7 @@ import static co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW;
 /**
  * Activity for the face tracker app.  This app detects faces with the rear facing camera, and draws
  * overlay graphics to indicate the position, size, and ID of each face.
- * Created by Ser Soluciones SAS on 11/12/2017.
+ * Created by Ser Soluciones SAS on 11/12/2017.isOperational
  * www.sersoluciones.com - contacto@sersoluciones.com
  **/
 public class FaceTrackerActivity extends AppCompatActivity implements CameraSource.ShutterCallback,
@@ -108,7 +114,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     private static final String TAG = "FaceTracker";
 
     public static final String PATH_IMAGE_KEY = "image_path";
-    FloatingActionButton buttonAttachGalery;
+    private FloatingActionButton buttonAttachGalery;
 
     private CameraSource mCameraSource = null;
 
@@ -126,7 +132,6 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     private CameraSource.ShutterCallback shutterCallback;
     private CameraSource.PictureCallback pictureCallback;
     private boolean isDetectFace;
-    private int widthImage;
     private boolean isTakePhoto;
     private String mPhotoPath;
     private Fragment fragment;
@@ -136,7 +141,6 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     private static final int REQUEST_IMAGE_SELECTOR = 199;
     private PhotoSerOptions mOptions;
     private View mProgressView;
-    private int mOverlayWidth, mOverlayHeight;
 
     //==============================================================================================
     // Activity Methods
@@ -168,12 +172,9 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
         shutterCallback = this;
         pictureCallback = this;
-        widthImage = 0;
         isTakePhoto = false;
         mPhotoPath = "";
-        isDetectFace = false;
-        mOverlayWidth = 0;
-        mOverlayHeight = 0;
+        isDetectFace = mOptions.isDetectFace();
         DisplayMetrics metrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
@@ -235,7 +236,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         });
     }
 
-    public void attachImageFromGalery() {
+    private void attachImageFromGalery() {
         try {
             Intent galleryIntent = new Intent(Intent.ACTION_PICK,
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
@@ -316,25 +317,23 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     private void takePhoto() {
 
         if (isTakePhoto || mCameraSource == null) return;
-        if (!mOptions.isDetectFace()) {
+        if (!mOptions.isDetectFace() || !isDetectFace) {
             isTakePhoto = true;
             mCameraSource.takePicture(shutterCallback, pictureCallback);
             showProgress(true);
         } else {
-            if (isDetectFace) {
-                isTakePhoto = true;
-                new Handler().postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
+
+            isTakePhoto = true;
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mCameraSource != null) {
                         mCameraSource.takePicture(shutterCallback, pictureCallback);
                         showProgress(true);
                     }
-                }, 1000);
-
-            } else
-                Toast.makeText(this, "Ningun rostro detectado", Toast.LENGTH_SHORT).show();
+                }
+            }, 1000);
         }
-
     }
 
     public void returnURIImage(String path) {
@@ -382,13 +381,13 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         }
     }
 
-    public void launchInstance(Uri outputFileUri) {
+    private void launchInstance(Uri outputFileUri) {
         if (!mOptions.isCrop()) {
             addFragment(SaveImageFragment.newInstance(outputFileUri));
             return;
         }
 
-        if (mOptions.isDetectFace()) {
+        if (mOptions.isDetectFace() || !isDetectFace) {
             CropImage.activity(outputFileUri)
                     .setMinCropResultSize(100, 100)
                     //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
@@ -554,7 +553,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
     /**
      * Write the given bitmap to the given uri using the given compression.
      */
-    public void writeBitmapToUri(
+    private void writeBitmapToUri(
             Context context,
             Bitmap bitmap,
             Uri uri,
@@ -629,17 +628,21 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
             // available.  The detector will automatically become operational once the library
             // download completes on device.
             Log.w(TAG, "Face detector dependencies are not yet available.");
+            isDetectFace = false;
+        } else {
+            logW("Face Detector dependencies loaded.");
+            isDetectFace = mOptions.isDetectFace();
         }
 
-        if (mOptions.isDetectFace()) {
-            mCameraSource = new CameraSource.Builder(context, detector)
+        if (!mOptions.isDetectFace() || !isDetectFace) {
+            mCameraSource = new CameraSource.Builder(context)
                     .setRequestedPreviewSize(640, 480)
                     .setFacing(front ? CameraSource.CAMERA_FACING_FRONT : CameraSource.CAMERA_FACING_BACK)
                     .setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)
                     //.setRequestedFps(30.0f)
                     .build();
         } else {
-            mCameraSource = new CameraSource.Builder(context)
+            mCameraSource = new CameraSource.Builder(context, detector)
                     .setRequestedPreviewSize(640, 480)
                     .setFacing(front ? CameraSource.CAMERA_FACING_FRONT : CameraSource.CAMERA_FACING_BACK)
                     .setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)
@@ -908,8 +911,8 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         int focusAreaSize = getResources().getDimensionPixelSize(R.dimen.camera_focus_area_size);
         int areaSize = Float.valueOf(focusAreaSize * coefficient).intValue();
 
-        int left = clamp((int) x - areaSize / 2, 0, mCameraSource.getPreviewSize().getWidth() - areaSize);
-        int top = clamp((int) y - areaSize / 2, 0, mCameraSource.getPreviewSize().getHeight() - areaSize);
+        int left = clamp((int) x - areaSize / 2, mCameraSource.getPreviewSize().getWidth() - areaSize);
+        int top = clamp((int) y - areaSize / 2, mCameraSource.getPreviewSize().getHeight() - areaSize);
 
         RectF rectF = new RectF(left, top, left + areaSize, top + areaSize);
         matrix.mapRect(rectF);
@@ -917,12 +920,12 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         return new Rect(Math.round(rectF.left), Math.round(rectF.top), Math.round(rectF.right), Math.round(rectF.bottom));
     }
 
-    private int clamp(int x, int min, int max) {
+    private int clamp(int x, int max) {
         if (x > max) {
             return max;
         }
-        if (x < min) {
-            return min;
+        if (x < 0) {
+            return 0;
         }
         return x;
     }
@@ -1041,18 +1044,40 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         switch (resultCode) {
             case RESULT_OK:
                 if (requestCode == REQUEST_IMAGE_SELECTOR) {
-                    File mCurrentPhoto;
-                    String[] filePathColumn = {MediaStore.Images.Media.DATA};
-                    Cursor cursor = getContentResolver().query(data.getData(), filePathColumn, null, null, null);
-                    if (cursor == null || cursor.getCount() < 1) {
+                    File mCurrentPhoto = null;
+                    Uri uri = data.getData();
+
+                    if (uri == null) {
                         break;
                     }
-                    cursor.moveToFirst();
-                    int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
-                    if (columnIndex < 0) { // no column index
-                        break;
+
+                    if (uri.toString().startsWith("content://com.google.android.apps.photos.content")) {
+                        try {
+                            InputStream is = getContentResolver().openInputStream(uri);
+                            if (is != null) {
+                                Bitmap pictureBitmap = BitmapFactory.decodeStream(is);
+                                mCurrentPhoto = new File(RealPathUtil.getRealPath(this, getImageUri(this, pictureBitmap)));
+
+                            }
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+
+                        String[] filePathColumn = {MediaStore.Images.Media.DATA};
+                        Cursor cursor = getContentResolver().query(uri, filePathColumn, null, null, null);
+                        if (cursor == null || cursor.getCount() < 1) {
+                            break;
+                        }
+                        cursor.moveToFirst();
+                        int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+                        if (columnIndex < 0) { // no column index
+                            break;
+                        }
+                        mCurrentPhoto = new File(cursor.getString(columnIndex));
+                        cursor.close();
+
                     }
-                    mCurrentPhoto = new File(cursor.getString(columnIndex));
 
 //                    if (mOptions.isDetectFace()) {
 //                        if (isFoundFace(BitmapFactory.decodeFile(mCurrentPhoto.getPath()))) {
@@ -1078,7 +1103,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
                             .setFixAspectRatio(mOptions.isFixAspectRatio())
                             .start(this);
 //                    }
-                    cursor.close();
+
                 } else if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
 
                     CropImage.ActivityResult result = CropImage.getActivityResult(data);
@@ -1114,6 +1139,13 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
                 break;
         }
+    }
+
+    public Uri getImageUri(Context inContext, Bitmap inImage) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        inImage.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        String path = MediaStore.Images.Media.insertImage(inContext.getContentResolver(), inImage, "temp-image", null);
+        return Uri.parse(path);
     }
 
     @SuppressWarnings("unused")
@@ -1183,8 +1215,8 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
         GraphicFaceTracker(GraphicOverlay<FaceGraphic> overlay) {
             mOverlay = overlay;
             mFaceGraphic = new FaceGraphic(overlay);
-            mOverlayWidth = mOverlay.getWidth();
-            mOverlayHeight = mOverlay.getHeight();
+//            mOverlayWidth = mOverlay.getWidth();
+//            mOverlayHeight = mOverlay.getHeight();
         }
 
         /**

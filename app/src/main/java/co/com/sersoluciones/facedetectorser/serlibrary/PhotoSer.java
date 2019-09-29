@@ -4,9 +4,9 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 
 import co.com.sersoluciones.facedetectorser.FaceTrackerActivity;
 
@@ -45,14 +45,14 @@ public final class PhotoSer {
         /**
          * Get {@link FaceTrackerActivity} intent to start the activity.
          */
-        public Intent getIntent(@NonNull Context context) {
+        Intent getIntent(@NonNull Context context) {
             return getIntent(context, FaceTrackerActivity.class);
         }
 
         /**
          * Get {@link FaceTrackerActivity} intent to start the activity.
          */
-        public Intent getIntent(@NonNull Context context, @Nullable Class<?> cls) {
+        Intent getIntent(@NonNull Context context, @Nullable Class<?> cls) {
             //mOptions.validate();
 
             Intent intent = new Intent();

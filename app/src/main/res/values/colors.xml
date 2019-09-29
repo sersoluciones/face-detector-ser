@@ -8,7 +8,6 @@
 
     <color name="colorUnderline">#9e9e9e</color>
 
-    <color name="windowBackground">#dedede</color>
     <color name="colorButtonLogin">#0099cc</color>
 
     <color name="whiteTransparent">#dcffffff</color>
@@ -17,32 +16,21 @@
     <!-- Colors related button -->
     <color name="btnText">#185698</color>
     <color name="btnBackground">#84d0fd</color>
-    <color name="btnBorder">#3694f7</color>
-    <color name="primary_text_dark_background">#185698</color>
 
-    <color name="green">#2ee600</color>
     <color name="green_positive_button">#4caf50</color>
-    <color name="background_toolbar">#dc6aca25</color>
 
     <color name="colorRadioButtonOn">#2980b9</color>
     <color name="colorRadioButtonOff">#3498db</color>
-
-    <color name="list_divider_color">#ccc</color>
 
     <color name="bar_decoded">#FF00FF00</color>
     <color name="bar_undecoded">#FFFF0000</color>
 
     <color name="pink">#ffa5a5</color>
-    <color name="actionbar_opacity">#33000000</color>
     <color name="black_alpha_40">#66000000</color>
     <color name="expiry">#c6ff8000</color>
 
-    <color name="select_module_list">#a16aca25</color>
-
 
     <color name="light_gray">#fafafa</color>
-    <color name="gray_light">#eee</color>
-    <color name="gray_medium">#eaeaea</color>
     <color name="gray">#aaa</color>
     <color name="dark_gray">#464646</color>
 
@@ -54,8 +42,4 @@
 
     <color name="back_transparent">#7eeeeeee</color>
 
-    <color name="s1">#A7FFEB</color>
-    <color name="s2">#64FFDA</color>
-    <color name="s3">#1DE9B6</color>
-    <color name="s4">#00BFA5</color>
 </resources>
