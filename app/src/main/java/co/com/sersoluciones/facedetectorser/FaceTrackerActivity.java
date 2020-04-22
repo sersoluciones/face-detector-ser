@@ -65,7 +65,6 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -476,8 +475,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
             imageFile.createNewFile();
         } else {
-            Toast.makeText(getBaseContext(), "Image Not saved",
-                    Toast.LENGTH_SHORT).show();
+            logE("Image Not saved");
             return null;
         }
         // save image into gallery
@@ -1185,7 +1183,7 @@ public class FaceTrackerActivity extends AppCompatActivity implements CameraSour
 
             return true;
         } else {
-            Toast.makeText(this, "Ningun rostro detectado", Toast.LENGTH_SHORT).show();
+            logE("Ningun rostro detectado");
             return false;
         }
     }
