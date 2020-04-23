@@ -12,13 +12,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.graphics.*
 import android.graphics.Bitmap.CompressFormat
 import android.hardware.Camera
 import android.net.Uri
 import android.os.*
 import android.provider.MediaStore
+import android.provider.MediaStore.MediaColumns
 import android.provider.Settings
+import android.text.format.DateUtils
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.GestureDetector
@@ -39,6 +42,7 @@ import co.com.sersoluciones.facedetectorser.fragments.SaveImageFragment
 import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer
 import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSerOptions
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog
+import co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW
 import co.com.sersoluciones.facedetectorser.utilities.RealPathUtil
 import co.com.sersoluciones.facedetectorser.views.GraphicOverlay
 import com.google.android.gms.common.ConnectionResult
@@ -134,21 +138,21 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             binding.preview.stop()
             mCameraSource!!.release()
             toggle = !toggle
-            if (toggle) binding.fabLight.setEnabled(false) else binding.fabLight.setEnabled(true)
+            binding.fabLight.isEnabled = !toggle
             createCameraSource(toggle)
             startCameraSource()
             isDetectFace = false
         }
         val widthPixels = metrics.widthPixels
         val heightPixels = metrics.heightPixels
-        DebugLog.logW(String.format("FaceTrackerActivity width: %s, height: %s", widthPixels, heightPixels))
+        logW(String.format("FaceTrackerActivity width: %s, height: %s", widthPixels, heightPixels))
         matrix = Matrix()
         gestureDetector = GestureDetector(this, CaptureGestureListener())
         scaleGestureDetector = ScaleGestureDetector(this, ScaleListener())
         Snackbar.make(binding.faceOverlay, "Toque para autoenfocar. Pellizque/estire para zoom",
                 Snackbar.LENGTH_SHORT)
                 .show()
-        binding.fabAttach.setOnClickListener(View.OnClickListener { attachImageFromGalery() })
+        binding.fabAttach.setOnClickListener { attachImageFromGalery() }
     }
 
     private fun attachImageFromGalery() {
@@ -251,7 +255,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
     }
 
     override fun onPictureTaken(bytes: ByteArray) {
-        if (binding.preview != null) binding.preview!!.stop()
+        if (binding.preview != null) binding.preview.stop()
 
         //decodeBytes(bytes);
         // showProgress(false);
@@ -280,7 +284,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
     private fun launchInstance(outputFileUri: Uri?) {
         if (!mOptions!!.isCrop) {
-            addFragment(SaveImageFragment.newInstance(outputFileUri))
+            addFragment(SaveImageFragment.newInstance(outputFileUri!!))
             return
         }
         if (mOptions!!.isDetectFace || !isDetectFace) {
@@ -321,6 +325,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         }
     }
 
+    @SuppressLint("StaticFieldLeak")
     inner class SaveImageInGaleryAsyncTask : AsyncTask<String?, Void?, String?>() {
 
         override fun onPostExecute(photoPath: String?) {
@@ -370,7 +375,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
         if (success) {
             val date = Date()
-            imageFile = File(dir!!.absolutePath
+            imageFile = File(dir.absolutePath
                     + File.separator
                     + Timestamp(date.time).toString()
                     + "photo.jpg")
@@ -389,16 +394,15 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         mPhotoPath = imageFile.path
 
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, imageFile.name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaColumns.DISPLAY_NAME, imageFile.name)
+            put(MediaColumns.MIME_TYPE, "image/jpeg")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                put(MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
                 put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
             }
             put(MediaStore.Images.Media.DATA, imageFile.absolutePath)
         }
         contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
 
         photo.delete()
         return mPhotoPath
@@ -426,9 +430,20 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
      * @return the uri where the image was saved in, either the given uri or new pointing to temp
      * file.
      */
-    private fun writeTempStateStoreBitmap(context: Context, bitmap: Bitmap, uri: Uri?): Uri? {
-        var uri = uri
+    private fun writeTempStateStoreBitmap(context: Context, bitmap: Bitmap, originalUri: Uri?): Uri? {
+        var uri = originalUri
         return try {
+
+            // delete all files from cache
+            val dir = context.cacheDir
+            if (dir.isDirectory) {
+                val children = dir.list()
+                children?.forEach {
+                    if (it.contains("aic_state_store_temp"))
+                        File(dir, it).delete()
+                }
+            }
+
             var needSave = true
             if (uri == null) {
                 uri = Uri.fromFile(
@@ -517,7 +532,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             Log.w(TAG, "Face detector dependencies are not yet available.")
             false
         } else {
-            DebugLog.logW("Face Detector dependencies loaded.")
+            logW("Face Detector dependencies loaded.")
             mOptions!!.isDetectFace
         }
         mCameraSource = if (!mOptions!!.isDetectFace || !isDetectFace) {
@@ -540,7 +555,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
      */
     override fun onResume() {
         super.onResume()
-        DebugLog.logW("onResume")
+        logW("onResume")
         if (mCameraSource != null) startCameraSource()
     }
 
@@ -549,13 +564,13 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
      */
     override fun onPause() {
         super.onPause()
-        DebugLog.logW("onPause")
-        if (binding.preview != null) binding.preview!!.stop()
+        logW("onPause")
+        binding.preview.stop()
     }
 
     override fun onStart() {
         super.onStart()
-        DebugLog.logW("onStart")
+        logW("onStart")
         // Check for the camera permission before accessing the camera.  If the
         // permission is not granted yet, request permission.
         val rc = ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -571,7 +586,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
     override fun onStop() {
         super.onStop()
-        DebugLog.logW("onStop")
+        logW("onStop")
         if (mCameraSource != null) {
             mCameraSource!!.release()
             mCameraSource = null
@@ -714,7 +729,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         if (mCameraSource != null) {
             try {
                 //binding.preview.start(mCameraSource, binding.faceOverlay, heightPixels, widthPixels);
-                binding.preview!!.start(mCameraSource, binding.faceOverlay)
+                binding.preview.start(mCameraSource, binding.faceOverlay)
             } catch (e: IOException) {
                 Log.e(TAG, "Unable to start camera source.", e)
                 mCameraSource!!.release()
@@ -853,6 +868,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         super.onActivityResult(requestCode, resultCode, data)
         when (resultCode) {
             Activity.RESULT_OK -> if (requestCode == REQUEST_IMAGE_SELECTOR) {
+
                 var mCurrentPhoto: File? = null
                 val uri = data!!.data ?: return
                 if (uri.toString().startsWith("content://com.google.android.apps.photos.content")) {
@@ -860,29 +876,14 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                         val `is` = contentResolver.openInputStream(uri)
                         if (`is` != null) {
                             val pictureBitmap = BitmapFactory.decodeStream(`is`)
-                            try {
-                                mCurrentPhoto = File(RealPathUtil.getRealPath(this, getImageUri(this, pictureBitmap)))
-                            } catch (e: IOException) {
-                                e.printStackTrace()
-                                DebugLog.logE(e.message)
-                            }
+                            val uriImage = getImageUri(pictureBitmap)
+                            mCurrentPhoto = File(RealPathUtil.getRealPath(this, uriImage))
                         }
                     } catch (e: FileNotFoundException) {
                         e.printStackTrace()
                     }
                 } else {
-                    val filePathColumn = arrayOf(MediaStore.Images.Media.DATA)
-                    val cursor = contentResolver.query(uri, filePathColumn, null, null, null)
-                    if (cursor == null || cursor.count < 1) {
-                        return
-                    }
-                    cursor.moveToFirst()
-                    val columnIndex = cursor.getColumnIndex(filePathColumn[0])
-                    if (columnIndex < 0) { // no column index
-                        return
-                    }
-                    mCurrentPhoto = File(cursor.getString(columnIndex))
-                    cursor.close()
+                    mCurrentPhoto = File(RealPathUtil.getRealPath(this, uri)!!)
                 }
 
 //                    if (mOptions.isDetectFace()) {
@@ -911,7 +912,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             } else if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
                 val result = CropImage.getActivityResult(data)
                 val uri = result.uri
-                DebugLog.log("entra aca CROP_IMAGE_ACTIVITY_REQUEST_CODE " + result.uri)
+                DebugLog.log("CROP_IMAGE_ACTIVITY_REQUEST_CODE " + result.uri)
 
 //                        if (mOptions.isDetectFace()) {
 //                            bitmap = BitmapFactory.decodeStream(
@@ -937,43 +938,83 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         }
     }
 
-    private fun getImageUri(inContext: Context, inImage: Bitmap): Uri {
+    fun getImageUri(inContext: Context, inImage: Bitmap): Uri? {
+        val bytes = ByteArrayOutputStream()
+        inImage.compress(CompressFormat.JPEG, 100, bytes)
+        val path = MediaStore.Images.Media.insertImage(inContext.contentResolver, inImage, "temp-image", null)
+        return Uri.parse(path)
+    }
 
-        val uri: Uri?
-//        var path = MediaStore.Images.Media.insertImage(inContext.contentResolver, inImage, "temp-image", null)
-        val relativeLocation = Environment.DIRECTORY_PICTURES + File.pathSeparator + "temp-image"
+    private fun getImageUri(inImage: Bitmap): Uri? {
+
+        val now = System.currentTimeMillis() / 1000
+        val insertUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val title = "temp-image"
+
+        // delete all files from EXTERNAL_CONTENT_URI
+        var rootPath = File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "TempSER").absolutePath
+        // getExternalFilesDir(Environment.DIRECTORY_PICTURES)?.absolutePath
+        logW("rootPath: $rootPath")
+
+        val extraPortion = ("Android/data/co.tecno.sersoluciones.analityco/files/")
+        // Remove extraPortion
+        rootPath = rootPath.replace(extraPortion, "")
+        val dir = File(rootPath)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        logW("path: ${dir.absolutePath} isDirectory: ${dir.isDirectory}")
+        if (dir.isDirectory) {
+            val children = dir.list()
+            children?.forEach {
+                logW("file in EXTERNAL_CONTENT_URI $it")
+                if (it.startsWith(title))
+                    File(dir, it).delete()
+            }
+        }
+
+        val imageFile = File(dir.absolutePath
+                + File.separator
+                + title
+                + now
+                + ".jpg")
+        imageFile.createNewFile()
+
+        // save image into gallery
+        val ostream = ByteArrayOutputStream()
+        inImage.compress(CompressFormat.JPEG, 90, ostream)
+        val fout = FileOutputStream(imageFile)
+        fout.write(ostream.toByteArray())
+        fout.close()
+
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.TITLE, "temp-image")
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaColumns.TITLE, title)
+            put(MediaColumns.DISPLAY_NAME, title)
+            put(MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaColumns.DATE_ADDED, now)
+            put(MediaColumns.DATE_MODIFIED, now)
+            put(MediaColumns.DATA, imageFile.absolutePath)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relativeLocation)
+//                put(MediaColumns.IS_PENDING, 1)
+                put(MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
             }
         }
 
-        uri = inContext.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        try {
-            uri?.let { it ->
-                val stream = inContext.contentResolver.openOutputStream(it)
-
-                stream?.let { outStream ->
-                    if (!inImage.compress(CompressFormat.JPEG, 80, outStream)) {
-                        throw IOException("Failed to save bitmap.")
-                    }
-                } ?: throw IOException("Failed to get output stream.")
-
-            } ?: throw IOException("Failed to create new MediaStore record")
-        } catch (e: IOException) {
-            if (uri != null) {
-                inContext.contentResolver.delete(uri, null, null)
+        val pendingUri = contentResolver.insert(insertUri, contentValues)
+        /*try {
+            contentResolver.openOutputStream(pendingUri!!).let { out ->
+                inImage.compress(CompressFormat.JPEG, 90, out)
             }
-            throw IOException(e)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.w(TAG, "Failed to insert image", e)
+            contentResolver.delete(pendingUri!!, null, null)
         } finally {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        }
-        return uri!!
+                contentValues.put(MediaColumns.IS_PENDING, 0)
+        }*/
+        return pendingUri
     }
 
     private fun isFoundFace(bitmap: Bitmap): Boolean {
