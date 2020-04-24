@@ -6,22 +6,19 @@ import android.animation.AnimatorListenerAdapter
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.ProgressDialog
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.graphics.*
 import android.graphics.Bitmap.CompressFormat
 import android.hardware.Camera
 import android.net.Uri
-import android.os.*
+import android.os.AsyncTask
+import android.os.Bundle
+import android.os.Handler
 import android.provider.MediaStore
-import android.provider.MediaStore.MediaColumns
 import android.provider.Settings
-import android.text.format.DateUtils
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.GestureDetector
@@ -43,7 +40,8 @@ import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer
 import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSerOptions
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW
-import co.com.sersoluciones.facedetectorser.utilities.RealPathUtil
+import co.com.sersoluciones.facedetectorser.utilities.compressImageFile
+import co.com.sersoluciones.facedetectorser.utilities.saveImageInGalery
 import co.com.sersoluciones.facedetectorser.views.GraphicOverlay
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -56,8 +54,11 @@ import com.google.android.gms.vision.face.FaceDetector
 import com.google.android.material.snackbar.Snackbar
 import com.theartofdev.edmodo.cropper.CropImage
 import com.theartofdev.edmodo.cropper.CropImageView
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.*
-import java.sql.Timestamp
 import java.util.*
 
 /*
@@ -92,8 +93,8 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
     private var pictureCallback: CameraSource.PictureCallback? = null
     private var isDetectFace = false
     private var isTakePhoto = false
-    private var mPhotoPath: String? = null
     private var fragment: Fragment? = null
+    private var fromGallery: Boolean = false
 
     private var mOptions: PhotoSerOptions? = null
     private lateinit var binding: FaceTrackerBinding
@@ -121,7 +122,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         shutterCallback = this
         pictureCallback = this
         isTakePhoto = false
-        mPhotoPath = ""
+
         isDetectFace = mOptions!!.isDetectFace
         val metrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(metrics)
@@ -242,20 +243,34 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         }
     }
 
-    fun returnURIImage(path: String?) {
-        mPhotoPath = path
-        if (mOptions!!.isSaveGalery) {
-            SaveImageInGaleryAsyncTask().execute(mPhotoPath)
+    fun returnURIImage(imageUri: Uri, fromGallery: Boolean) {
+
+        if (mOptions!!.isSaveGalery && !fromGallery) {
+
+            val exceptionHandler = CoroutineExceptionHandler { _, t ->
+                t.printStackTrace()
+            }
+            logW("imageUri $imageUri")
+            GlobalScope.launch(Dispatchers.Main + exceptionHandler) {
+//                setResult(Activity.RESULT_CANCELED, intent)
+                val newUri = saveImageInGalery(imageUri, mOptions!!.quality)
+                sendResult(newUri!!)
+            }
+
         } else {
-            val intent = Intent()
-            intent.putExtra(PATH_IMAGE_KEY, mPhotoPath)
-            setResult(Activity.RESULT_OK, intent)
-            finish()
+            sendResult(imageUri)
         }
     }
 
+    private fun sendResult(imageUri: Uri) {
+        val intent = Intent()
+        intent.putExtra(URI_IMAGE_KEY, imageUri.toString())
+        setResult(Activity.RESULT_OK, intent)
+        finish()
+    }
+
     override fun onPictureTaken(bytes: ByteArray) {
-        if (binding.preview != null) binding.preview.stop()
+        binding.preview.stop()
 
         //decodeBytes(bytes);
         // showProgress(false);
@@ -266,6 +281,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             val scaledBitmap: Bitmap
             loadedImage = BitmapFactory.decodeByteArray(bytes, 0,
                     bytes.size)
+            fromGallery = false
             scaledBitmap = if (rotation > 0) {
                 val rotateMatrix = Matrix()
                 rotateMatrix.postRotate(rotation.toFloat())
@@ -284,7 +300,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
     private fun launchInstance(outputFileUri: Uri?) {
         if (!mOptions!!.isCrop) {
-            addFragment(SaveImageFragment.newInstance(outputFileUri!!))
+            addFragment(SaveImageFragment.newInstance(outputFileUri!!, false))
             return
         }
         if (mOptions!!.isDetectFace || !isDetectFace) {
@@ -297,7 +313,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                     .start(this)
         } else {
             CropImage.activity(outputFileUri)
-                    .setMinCropResultSize(100, 100) //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                    .setMinCropResultSize(100, 100)
                     .setBorderLineColor(Color.BLUE)
                     .setBorderCornerColor(Color.GREEN)
                     .setGuidelines(CropImageView.Guidelines.ON)
@@ -309,12 +325,6 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
     @SuppressLint("StaticFieldLeak")
     inner class SaveImageAsyncTask : AsyncTask<Bitmap?, Void?, Uri?>() {
 
-        override fun onPostExecute(outputFileUri: Uri?) {
-            super.onPostExecute(outputFileUri)
-            launchInstance(outputFileUri)
-            showProgress(false)
-        }
-
         override fun doInBackground(vararg params: Bitmap?): Uri? {
 
             val outputFileUri = writeTempStateStoreBitmap(this@FaceTrackerActivity, params[0]!!, null)
@@ -323,90 +333,15 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             params[1]!!.recycle()
             return outputFileUri
         }
-    }
 
-    @SuppressLint("StaticFieldLeak")
-    inner class SaveImageInGaleryAsyncTask : AsyncTask<String?, Void?, String?>() {
-
-        override fun onPostExecute(photoPath: String?) {
-            super.onPostExecute(photoPath)
-            if (photoPath.isNullOrEmpty()) setResult(Activity.RESULT_CANCELED, intent)
-            else {
-                mPhotoPath = photoPath
-                val intent = Intent()
-                intent.putExtra(PATH_IMAGE_KEY, mPhotoPath)
-                setResult(Activity.RESULT_OK, intent)
-            }
+        override fun onPostExecute(outputFileUri: Uri?) {
+            super.onPostExecute(outputFileUri)
+            launchInstance(outputFileUri)
             showProgress(false)
-            finish()
         }
 
-        override fun doInBackground(vararg params: String?): String? {
-            var photoPath: String? = ""
-            try {
-                photoPath = saveImageInGalery(params[0]!!)
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-            return photoPath
-        }
     }
 
-    @Throws(IOException::class)
-    private fun saveImageInGalery(pathImage: String): String? {
-        val photo = File(pathImage)
-        val bitmap = BitmapFactory.decodeFile(pathImage)
-        val imageFile: File
-        var success = true
-        val dir: File
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            dir = File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "FaceDetectorSER")
-            // this.getExternalFilesDir(Environment.DIRECTORY_PICTURES + File.separator.toString() + "FaceDetectorSER")
-        } else {
-            dir = File(
-                    Environment.getExternalStoragePublicDirectory(
-                            Environment.DIRECTORY_PICTURES), "FaceDetectorSER")
-        }
-
-        if (!dir.exists()) {
-            success = dir.mkdirs()
-        }
-
-        if (success) {
-            val date = Date()
-            imageFile = File(dir.absolutePath
-                    + File.separator
-                    + Timestamp(date.time).toString()
-                    + "photo.jpg")
-            imageFile.createNewFile()
-        } else {
-            DebugLog.logE("Image Not saved")
-            return null
-        }
-        // save image into gallery
-        val ostream = ByteArrayOutputStream()
-        bitmap.compress(CompressFormat.JPEG, mOptions!!.quality, ostream)
-        val fout = FileOutputStream(imageFile)
-        fout.write(ostream.toByteArray())
-        fout.close()
-
-        mPhotoPath = imageFile.path
-
-        val contentValues = ContentValues().apply {
-            put(MediaColumns.DISPLAY_NAME, imageFile.name)
-            put(MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
-            }
-            put(MediaStore.Images.Media.DATA, imageFile.absolutePath)
-        }
-        contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
-        photo.delete()
-        return mPhotoPath
-    }
 
     private fun decodeBytes(data: ByteArray) {
         val mCamera = mCameraSource!!.camera
@@ -868,47 +803,29 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         super.onActivityResult(requestCode, resultCode, data)
         when (resultCode) {
             Activity.RESULT_OK -> if (requestCode == REQUEST_IMAGE_SELECTOR) {
+                var queryImageUrl = ""
+                val imageUri = data!!.data ?: return
 
-                var mCurrentPhoto: File? = null
-                val uri = data!!.data ?: return
-                if (uri.toString().startsWith("content://com.google.android.apps.photos.content")) {
-                    try {
-                        val `is` = contentResolver.openInputStream(uri)
-                        if (`is` != null) {
-                            val pictureBitmap = BitmapFactory.decodeStream(`is`)
-                            val uriImage = getImageUri(pictureBitmap)
-                            mCurrentPhoto = File(RealPathUtil.getRealPath(this, uriImage))
-                        }
-                    } catch (e: FileNotFoundException) {
-                        e.printStackTrace()
-                    }
-                } else {
-                    mCurrentPhoto = File(RealPathUtil.getRealPath(this, uri)!!)
+                val exceptionHandler = CoroutineExceptionHandler { _, t ->
+                    t.printStackTrace()
+                }
+                logW("imageUri $imageUri")
+
+                GlobalScope.launch(Dispatchers.Main + exceptionHandler) {
+                    showProgress(true)
+                    queryImageUrl = imageUri.path!!
+                    val newUri = compressImageFile(queryImageUrl, false, imageUri)
+                    showProgress(false)
+                    fromGallery = true
+                    CropImage.activity(newUri)
+                            .setMinCropResultSize(100, 100) //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
+                            .setBorderLineColor(Color.BLUE)
+                            .setBorderCornerColor(Color.GREEN)
+                            .setGuidelines(CropImageView.Guidelines.ON)
+                            .setFixAspectRatio(mOptions!!.isFixAspectRatio)
+                            .start(this@FaceTrackerActivity)
                 }
 
-//                    if (mOptions.isDetectFace()) {
-//                        if (isFoundFace(BitmapFactory.decodeFile(mCurrentPhoto.getPath()))) {
-//                            mPhotoPath = mCurrentPhoto.getPath();
-//                            //addFragment(SaveImageFragment.newInstance(mPhotoPath));
-//                            // start picker to get image for cropping and then use the image in cropping activity
-//                            CropImage.activity(Uri.fromFile(mCurrentPhoto))
-//                                    //.setMinCropResultSize(10, 10)
-//                                    //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-//                                    .setBorderLineColor(Color.BLUE)
-//                                    .setBorderCornerColor(Color.GREEN)
-//                                    .setGuidelines(CropImageView.Guidelines.ON)
-//                                    .setFixAspectRatio(mOptions.isFixAspectRatio())
-//                                    .start(this);
-//                        }
-//                    } else {
-                CropImage.activity(Uri.fromFile(mCurrentPhoto))
-                        .setMinCropResultSize(100, 100) //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
-                        .setBorderLineColor(Color.BLUE)
-                        .setBorderCornerColor(Color.GREEN)
-                        .setGuidelines(CropImageView.Guidelines.ON)
-                        .setFixAspectRatio(mOptions!!.isFixAspectRatio)
-                        .start(this)
-                //                    }
             } else if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
                 val result = CropImage.getActivityResult(data)
                 val uri = result.uri
@@ -921,7 +838,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 //                            if (isFoundFace(bitmap))
 //                                addFragment(SaveImageFragment.newInstance(uri.getPath()));
 //                        } else {
-                addFragment(SaveImageFragment.newInstance(uri))
+                addFragment(SaveImageFragment.newInstance(uri, fromGallery))
                 //                        }
             } else if (requestCode == 200) {
                 val selectedimg = data!!.data ?: return
@@ -938,90 +855,8 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         }
     }
 
-    fun getImageUri(inContext: Context, inImage: Bitmap): Uri? {
-        val bytes = ByteArrayOutputStream()
-        inImage.compress(CompressFormat.JPEG, 100, bytes)
-        val path = MediaStore.Images.Media.insertImage(inContext.contentResolver, inImage, "temp-image", null)
-        return Uri.parse(path)
-    }
-
-    private fun getImageUri(inImage: Bitmap): Uri? {
-
-        val now = System.currentTimeMillis() / 1000
-        val insertUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val title = "temp-image"
-
-        // delete all files from EXTERNAL_CONTENT_URI
-        var rootPath = File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "TempSER").absolutePath
-        // getExternalFilesDir(Environment.DIRECTORY_PICTURES)?.absolutePath
-        logW("rootPath: $rootPath")
-
-        val extraPortion = ("Android/data/co.tecno.sersoluciones.analityco/files/")
-        // Remove extraPortion
-        rootPath = rootPath.replace(extraPortion, "")
-        val dir = File(rootPath)
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
-        logW("path: ${dir.absolutePath} isDirectory: ${dir.isDirectory}")
-        if (dir.isDirectory) {
-            val children = dir.list()
-            children?.forEach {
-                logW("file in EXTERNAL_CONTENT_URI $it")
-                if (it.startsWith(title))
-                    File(dir, it).delete()
-            }
-        }
-
-        val imageFile = File(dir.absolutePath
-                + File.separator
-                + title
-                + now
-                + ".jpg")
-        imageFile.createNewFile()
-
-        // save image into gallery
-        val ostream = ByteArrayOutputStream()
-        inImage.compress(CompressFormat.JPEG, 90, ostream)
-        val fout = FileOutputStream(imageFile)
-        fout.write(ostream.toByteArray())
-        fout.close()
-
-        val contentValues = ContentValues().apply {
-            put(MediaColumns.TITLE, title)
-            put(MediaColumns.DISPLAY_NAME, title)
-            put(MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaColumns.DATE_ADDED, now)
-            put(MediaColumns.DATE_MODIFIED, now)
-            put(MediaColumns.DATA, imageFile.absolutePath)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-//                put(MediaColumns.IS_PENDING, 1)
-                put(MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-            }
-        }
-
-        val pendingUri = contentResolver.insert(insertUri, contentValues)
-        /*try {
-            contentResolver.openOutputStream(pendingUri!!).let { out ->
-                inImage.compress(CompressFormat.JPEG, 90, out)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.w(TAG, "Failed to insert image", e)
-            contentResolver.delete(pendingUri!!, null, null)
-        } finally {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                contentValues.put(MediaColumns.IS_PENDING, 0)
-        }*/
-        return pendingUri
-    }
-
     private fun isFoundFace(bitmap: Bitmap): Boolean {
-
         //Bitmap icon = BitmapFactory.decodeResource(getResources(),R.drawable.DSC_1344);
-
-        //log("entra 1 detector");
         val faceDetector = FaceDetector.Builder(this)
                 .setProminentFaceOnly(true)
                 .setClassificationType(FaceDetector.NO_CLASSIFICATIONS)
@@ -1029,24 +864,17 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                 .setMode(FaceDetector.FAST_MODE)
                 .setTrackingEnabled(false)
                 .build()
-        //log("entra 2 detector");
         if (!faceDetector.isOperational) {
             val v = findViewById<View>(android.R.id.content)
             AlertDialog.Builder(v.context).setMessage("Could not set up the face detector!").show()
             return false
         }
-        //log("entra 3 detector");
         val myFrame = Frame.Builder()
                 .setBitmap(bitmap)
                 .build()
-        //log("entra 4 detector");
-        val progressDialog = ProgressDialog(this)
-        progressDialog.show()
+
         val faces = faceDetector.detect(myFrame)
-        //log("entra 5 detector");
-        progressDialog.dismiss()
         faceDetector.release()
-        //log("entra 6 detector");
         // Check if at least one barcode was detected
         return if (faces.size() != 0) {
             DebugLog.log("Face found!!! " + faces.valueAt(0).isLeftEyeOpenProbability)
@@ -1119,7 +947,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
     companion object {
         private const val TAG = "FaceTracker"
-        const val PATH_IMAGE_KEY = "image_path"
+        const val URI_IMAGE_KEY = "image_uri"
         private const val RC_HANDLE_GMS = 9001
 
         // permission request codes need to be < 256

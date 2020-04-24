@@ -10,7 +10,6 @@ import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.AsyncTask
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,8 +17,7 @@ import androidx.fragment.app.Fragment
 import co.com.sersoluciones.facedetectorser.FaceTrackerActivity
 import co.com.sersoluciones.facedetectorser.databinding.FragmentSavePhotoBinding
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW
-import java.io.*
-import java.net.URL
+import java.io.FileDescriptor
 
 /**
  * Created by Ser Soluciones SAS on 28/12/2017.
@@ -27,8 +25,8 @@ import java.net.URL
  */
 class SaveImageFragment : Fragment() {
 
-    private var mPhotoPath: String? = null
     private var uriImage: Uri? = null
+    private var fromGallery: Boolean = false
     private var mBitmap: Bitmap? = null
     private var rotateImage = 0
 
@@ -36,12 +34,11 @@ class SaveImageFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        mPhotoPath = ""
         rotateImage = 0
         mBitmap = null
         arguments?.let {
-            if (it.containsKey(ARG_PHOTO_PATH)) mPhotoPath = arguments!!.getString(ARG_PHOTO_PATH)
             if (it.containsKey(ARG_URI)) uriImage = Uri.parse(arguments!!.getString(ARG_URI))
+            if (it.containsKey(ARG_FROM_GALLERY)) fromGallery = arguments!!.getBoolean(ARG_FROM_GALLERY)
             logW("uriImage: $uriImage")
         }
 
@@ -60,36 +57,28 @@ class SaveImageFragment : Fragment() {
         binding.fabRotate.setOnClickListener { rotateLogo() }
 
         binding.previousButton.setOnClickListener { removeFragment() }
-        val bitmap: Bitmap
-        if (mPhotoPath!!.isNotEmpty()) {
-            // bitmap = BitmapFactory.decodeFile(mPhotoPath);
 
-            //BitmapFactory.Options options = new BitmapFactory.Options();
-            //options.inSampleSize = 2;
-            bitmap = BitmapFactory.decodeFile(mPhotoPath)
-            val ostream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, ostream)
-            val decoded = BitmapFactory.decodeStream(ByteArrayInputStream(ostream.toByteArray()))
-            Log.w("SAVEIMAGEFRAGMENT", "Width: " + decoded.width + ", Height: " + decoded.height)
-            binding.imagePreview.setImageBitmap(decoded)
-        } else {
-
-            //BitmapFactory.Options options = new BitmapFactory.Options();
-            //options.inSampleSize = 2;
+        //BitmapFactory.Options options = new BitmapFactory.Options();
+        //options.inSampleSize = 2;
 //            bitmap = BitmapFactory.decodeFile(uriImage!!.path)
 
-            val openStream = URL(uriImage!!.toString()).openStream()
-            bitmap = BitmapFactory.decodeStream(openStream)
+//            val openStream = URL(uriImage!!.toString()).openStream()
+//            bitmap = BitmapFactory.decodeStream(openStream)
+//
+//            val ostream = ByteArrayOutputStream()
+//            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, ostream)
+//            val decoded = BitmapFactory.decodeStream(ByteArrayInputStream(ostream.toByteArray()))
+//            binding.imagePreview.setImageBitmap(decoded)
 
-            val ostream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, ostream)
-            val decoded = BitmapFactory.decodeStream(ByteArrayInputStream(ostream.toByteArray()))
-            Log.w("SAVEIMAGEFRAGMENT", "Width: " + decoded.width + ", Height: " + decoded.height)
-            binding.imagePreview.setImageBitmap(decoded)
-            if (mPhotoPath!!.isEmpty()) mPhotoPath = uriImage!!.path
-            //bitmap = BitmapFactory.decodeFile(mPhotoPath);
-            // binding.imagePreview.setImageBitmap(bitmap);
+        val readOnlyMode = "r"
+        val image = activity?.contentResolver?.openFileDescriptor(uriImage!!, readOnlyMode).use { pfd ->
+            pfd?.let {
+                val fileDescriptor: FileDescriptor = it.fileDescriptor
+                BitmapFactory.decodeFileDescriptor(fileDescriptor)
+            }
         }
+        binding.imagePreview.setImageBitmap(image)
+
     }
 
     private fun saveImage() {
@@ -98,7 +87,7 @@ class SaveImageFragment : Fragment() {
             if (rotateImage > 0) {
                 SaveImageAsyncTask().execute()
             } else {
-                (activity as FaceTrackerActivity?)!!.returnURIImage(mPhotoPath)
+                (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!, fromGallery)
             }
         }
     }
@@ -137,22 +126,22 @@ class SaveImageFragment : Fragment() {
     @SuppressLint("StaticFieldLeak")
     inner class SaveImageAsyncTask : AsyncTask<Void?, Void?, Void?>() {
         override fun doInBackground(vararg params: Void?): Void? {
-            val ostream = ByteArrayOutputStream()
-            mBitmap!!.compress(Bitmap.CompressFormat.JPEG, 100, ostream)
+
             try {
-                val imageFile = File(mPhotoPath!!)
-                val fout = FileOutputStream(imageFile)
-                fout.write(ostream.toByteArray())
-                fout.close()
-            } catch (e: IOException) {
+                activity?.contentResolver!!.openOutputStream(uriImage!!).let { out ->
+                    mBitmap!!.compress(Bitmap.CompressFormat.JPEG, 100, out)
+                }
+            } catch (e: Exception) {
                 e.printStackTrace()
+                logW("Failed to insert image")
             }
+
             return null
         }
 
         override fun onPostExecute(aVoid: Void?) {
             super.onPostExecute(aVoid)
-            (activity as FaceTrackerActivity?)!!.returnURIImage(mPhotoPath)
+            (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!, fromGallery)
         }
     }
 
@@ -187,29 +176,21 @@ class SaveImageFragment : Fragment() {
     }
 
     companion object {
-        private const val ARG_PHOTO_PATH = "mPhotoPath"
         private const val ARG_URI = "uri_image"
+        private const val ARG_FROM_GALLERY = "from_gallery"
 
         /**
          * Use this factory method to create a new instance of
          * this fragment using the provided parameters.
          *
-         * @param mPhotoPath Parameter 1.
+         * @param uri uri from image
          * @return A new instance of fragment ValidityFragment.
          */
-        fun newInstance(mPhotoPath: String?): SaveImageFragment {
-            val fragment = SaveImageFragment()
-            val args = Bundle()
-            args.putString(ARG_PHOTO_PATH, mPhotoPath)
-            fragment.arguments = args
-            return fragment
-        }
-
-        fun newInstance(uri: Uri): SaveImageFragment {
+        fun newInstance(uri: Uri, fromGallery: Boolean): SaveImageFragment {
             val fragment = SaveImageFragment()
             val args = Bundle()
             args.putString(ARG_URI, uri.toString())
-            logW("ARG_URI: $uri")
+            args.putBoolean(ARG_FROM_GALLERY, fromGallery)
             fragment.arguments = args
             return fragment
         }
