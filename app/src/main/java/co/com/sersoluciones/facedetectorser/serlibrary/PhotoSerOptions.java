@@ -20,7 +20,7 @@ public class PhotoSerOptions implements Parcelable {
         fixAspectRatio = true;
         saveGalery = false;
         isCrop = true;
-        quality = 50;
+        quality = 80;
     }
 
     private PhotoSerOptions(Parcel in) {

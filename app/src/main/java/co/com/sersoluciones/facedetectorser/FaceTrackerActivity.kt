@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.graphics.*
 import android.graphics.Bitmap.CompressFormat
 import android.hardware.Camera
+import android.media.MediaActionSound
 import android.net.Uri
 import android.os.AsyncTask
 import android.os.Bundle
@@ -32,6 +33,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
+import co.com.sersoluciones.facedetectorser.camera.CameraRect
 import co.com.sersoluciones.facedetectorser.camera.CameraSource
 import co.com.sersoluciones.facedetectorser.camera.FaceGraphic
 import co.com.sersoluciones.facedetectorser.databinding.FaceTrackerBinding
@@ -40,8 +42,9 @@ import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSer
 import co.com.sersoluciones.facedetectorser.serlibrary.PhotoSerOptions
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog
 import co.com.sersoluciones.facedetectorser.utilities.DebugLog.logW
-import co.com.sersoluciones.facedetectorser.utilities.compressImageFile
+import co.com.sersoluciones.facedetectorser.utilities.getRealURI
 import co.com.sersoluciones.facedetectorser.utilities.saveImageInGalery
+import co.com.sersoluciones.facedetectorser.utilities.writeBitmapToUri
 import co.com.sersoluciones.facedetectorser.views.GraphicOverlay
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -58,8 +61,11 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import java.io.*
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 import java.util.*
+import kotlin.math.roundToInt
 
 /*
  * Copyright (C) The Android Open Source Project
@@ -94,10 +100,10 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
     private var isDetectFace = false
     private var isTakePhoto = false
     private var fragment: Fragment? = null
-    private var fromGallery: Boolean = false
 
     private var mOptions: PhotoSerOptions? = null
     private lateinit var binding: FaceTrackerBinding
+    private lateinit var cameraRectGraphic: CameraRect
     //==============================================================================================
     // Activity Methods
     //==============================================================================================
@@ -116,6 +122,8 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         val bundle = intent.getBundleExtra(PhotoSer.PHOTO_SER_EXTRA_BUNDLE)
         mOptions = bundle.getParcelable(PhotoSer.PHOTO_SER_EXTRA_OPTIONS)
+
+        cameraRectGraphic = CameraRect(binding.rectOverlay)
         toggle = false
         isChecked = false
 
@@ -243,9 +251,9 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
         }
     }
 
-    fun returnURIImage(imageUri: Uri, fromGallery: Boolean) {
+    fun returnURIImage(imageUri: Uri) {
 
-        if (mOptions!!.isSaveGalery && !fromGallery) {
+        if (mOptions!!.isSaveGalery) {
 
             val exceptionHandler = CoroutineExceptionHandler { _, t ->
                 t.printStackTrace()
@@ -281,7 +289,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
             val scaledBitmap: Bitmap
             loadedImage = BitmapFactory.decodeByteArray(bytes, 0,
                     bytes.size)
-            fromGallery = false
+
             scaledBitmap = if (rotation > 0) {
                 val rotateMatrix = Matrix()
                 rotateMatrix.postRotate(rotation.toFloat())
@@ -300,7 +308,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
     private fun launchInstance(outputFileUri: Uri?) {
         if (!mOptions!!.isCrop) {
-            addFragment(SaveImageFragment.newInstance(outputFileUri!!, false))
+            addFragment(SaveImageFragment.newInstance(outputFileUri!!))
             return
         }
         if (mOptions!!.isDetectFace || !isDetectFace) {
@@ -327,7 +335,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 
         override fun doInBackground(vararg params: Bitmap?): Uri? {
 
-            val outputFileUri = writeTempStateStoreBitmap(this@FaceTrackerActivity, params[0]!!, null)
+            val outputFileUri = writeTempStateStoreBitmap(this@FaceTrackerActivity, params[0]!!)
             isTakePhoto = false
             isDetectFace = false
             params[1]!!.recycle()
@@ -365,8 +373,8 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
      * @return the uri where the image was saved in, either the given uri or new pointing to temp
      * file.
      */
-    private fun writeTempStateStoreBitmap(context: Context, bitmap: Bitmap, originalUri: Uri?): Uri? {
-        var uri = originalUri
+    private fun writeTempStateStoreBitmap(context: Context, bitmap: Bitmap): Uri? {
+
         return try {
 
             // delete all files from cache
@@ -379,44 +387,15 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                 }
             }
 
-            var needSave = true
-            if (uri == null) {
-                uri = Uri.fromFile(
-                        File.createTempFile("aic_state_store_temp", ".jpg", context.cacheDir))
-            } else if (File(uri.path).exists()) {
-                needSave = false
-            }
-            if (needSave) {
-                writeBitmapToUri(context, bitmap, uri, CompressFormat.JPEG, mOptions!!.quality)
-            }
+            // File(uri.path).exists()
+            val uri = Uri.fromFile(
+                    File.createTempFile("aic_state_store_temp", ".jpg", context.cacheDir))
+            writeBitmapToUri(context, bitmap, uri, CompressFormat.JPEG, mOptions!!.quality)
+
             uri
         } catch (e: Exception) {
             Log.w("AIC", "Failed to write bitmap to temp file for image-cropper save instance state", e)
             null
-        }
-    }
-
-    /**
-     * Write the given bitmap to the given uri using the given compression.
-     */
-    @Throws(FileNotFoundException::class)
-    private fun writeBitmapToUri(
-            context: Context,
-            bitmap: Bitmap,
-            uri: Uri?,
-            compressFormat: CompressFormat,
-            compressQuality: Int) {
-        var outputStream: OutputStream? = null
-        try {
-            outputStream = context.contentResolver.openOutputStream(uri!!)
-            bitmap.compress(compressFormat, compressQuality, outputStream)
-        } finally {
-            if (outputStream != null) {
-                try {
-                    outputStream.close()
-                } catch (ignored: IOException) {
-                }
-            }
         }
     }
 
@@ -687,21 +666,42 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                 val meteringRect = calculateTapArea(e.x, e.y, 1.5f)
                 DebugLog.log(String.format("posX: %s, posY: %s", e.x, e.y))
                 mCameraSource!!.focusOnTouch(focusRect, meteringRect)
+
+                val sound = MediaActionSound()
+                sound.play(MediaActionSound.FOCUS_COMPLETE)
+//                sound.release()
+
+                binding.rectOverlay.clear()
+                binding.rectOverlay.add(cameraRectGraphic)
+                val rect = GeBlurringRect(e.x.roundToInt(), e.y.roundToInt(), binding.preview.width, binding.preview.height)
+                cameraRectGraphic.updateItem(rect)
+//                cameraRectGraphic.updateItem(calculateTapArea(e.x, e.y, 4.0f))
+                Handler().postDelayed({ binding.rectOverlay.clear() }, 2000)
             }
-
-            /*cameraRectGraphicOverlay.add(cameraRectGraphic);
-            cameraRectGraphic.updateItem(calculateTapArea(e.getX(), e.getY(), 4.0f));
-
-            MediaActionSound sound = new MediaActionSound();
-            sound.play(MediaActionSound.FOCUS_COMPLETE);
-
-            new Handler().postDelayed(new Runnable() {
-                public void run() {
-                    cameraRectGraphicOverlay.clear();
-                }
-            }, 2000);*/
         }
         return binding.preview != null
+    }
+
+    private fun GeBlurringRect(centerX: Int, centerY: Int, width: Int, height: Int): Rect? {
+        val rectWidth2 = width / 14
+        val _result = Rect(centerX - rectWidth2, centerY - rectWidth2, centerX + rectWidth2, centerY + rectWidth2)
+        if (_result.left < 0) {
+            _result.left = 0
+            _result.right = rectWidth2 * 2
+        }
+        if (_result.top < 0) {
+            _result.top = 0
+            _result.bottom = rectWidth2 * 2
+        }
+        if (_result.right > width) {
+            _result.right = width
+            _result.left = width - rectWidth2 * 2
+        }
+        if (_result.bottom > height) {
+            _result.bottom = height
+            _result.top = height - rectWidth2 * 2
+        }
+        return _result
     }
 
     private fun calculateTapArea(x: Float, y: Float, coefficient: Float): Rect {
@@ -814,9 +814,9 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
                 GlobalScope.launch(Dispatchers.Main + exceptionHandler) {
                     showProgress(true)
                     queryImageUrl = imageUri.path!!
-                    val newUri = compressImageFile(queryImageUrl, false, imageUri)
+                    val newUri = getRealURI(imageUri)
                     showProgress(false)
-                    fromGallery = true
+
                     CropImage.activity(newUri)
                             .setMinCropResultSize(100, 100) //.setRequestedSize(500, 500, CropImageView.RequestSizeOptions.RESIZE_INSIDE)
                             .setBorderLineColor(Color.BLUE)
@@ -838,7 +838,7 @@ class FaceTrackerActivity : AppCompatActivity(), CameraSource.ShutterCallback, C
 //                            if (isFoundFace(bitmap))
 //                                addFragment(SaveImageFragment.newInstance(uri.getPath()));
 //                        } else {
-                addFragment(SaveImageFragment.newInstance(uri, fromGallery))
+                addFragment(SaveImageFragment.newInstance(uri))
                 //                        }
             } else if (requestCode == 200) {
                 val selectedimg = data!!.data ?: return

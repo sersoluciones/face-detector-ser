@@ -2,6 +2,7 @@ package co.com.sersoluciones.facedetectorser.camera;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.CornerPathEffect;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.CountDownTimer;
@@ -46,9 +47,10 @@ public class CameraRect extends GraphicOverlay.Graphic {
 
     @Override
     public void draw(Canvas canvas) {
-        paint.setColor(Color.GREEN);
+        paint.setColor(Color.WHITE);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2.0f);
+        paint.setPathEffect(new CornerPathEffect(60.0f));
         canvas.drawRect(focusRect, paint);
 
     }

@@ -26,7 +26,6 @@ import java.io.FileDescriptor
 class SaveImageFragment : Fragment() {
 
     private var uriImage: Uri? = null
-    private var fromGallery: Boolean = false
     private var mBitmap: Bitmap? = null
     private var rotateImage = 0
 
@@ -38,7 +37,6 @@ class SaveImageFragment : Fragment() {
         mBitmap = null
         arguments?.let {
             if (it.containsKey(ARG_URI)) uriImage = Uri.parse(arguments!!.getString(ARG_URI))
-            if (it.containsKey(ARG_FROM_GALLERY)) fromGallery = arguments!!.getBoolean(ARG_FROM_GALLERY)
             logW("uriImage: $uriImage")
         }
 
@@ -87,7 +85,7 @@ class SaveImageFragment : Fragment() {
             if (rotateImage > 0) {
                 SaveImageAsyncTask().execute()
             } else {
-                (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!, fromGallery)
+                (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!)
             }
         }
     }
@@ -141,7 +139,7 @@ class SaveImageFragment : Fragment() {
 
         override fun onPostExecute(aVoid: Void?) {
             super.onPostExecute(aVoid)
-            (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!, fromGallery)
+            (activity as FaceTrackerActivity?)!!.returnURIImage(uriImage!!)
         }
     }
 
@@ -177,7 +175,6 @@ class SaveImageFragment : Fragment() {
 
     companion object {
         private const val ARG_URI = "uri_image"
-        private const val ARG_FROM_GALLERY = "from_gallery"
 
         /**
          * Use this factory method to create a new instance of
@@ -186,11 +183,10 @@ class SaveImageFragment : Fragment() {
          * @param uri uri from image
          * @return A new instance of fragment ValidityFragment.
          */
-        fun newInstance(uri: Uri, fromGallery: Boolean): SaveImageFragment {
+        fun newInstance(uri: Uri): SaveImageFragment {
             val fragment = SaveImageFragment()
             val args = Bundle()
             args.putString(ARG_URI, uri.toString())
-            args.putBoolean(ARG_FROM_GALLERY, fromGallery)
             fragment.arguments = args
             return fragment
         }

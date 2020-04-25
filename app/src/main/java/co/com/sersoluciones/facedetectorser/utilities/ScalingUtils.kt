@@ -223,7 +223,7 @@ fun Context.getImageHgtWdt(uri: Uri): Pair<Int, Int> {
     /* by setting this field as true, the actual bitmap pixels are not loaded in the memory. Just the bounds are loaded.
     If you try the use the bitmap here, you will get null.*/
     opt.inJustDecodeBounds = true
-    val bm = getBitmapFromUri(uri, opt)
+//    val bm = getBitmapFromUri(uri, opt)
 
     var actualHgt = (opt.outHeight).toFloat()
     var actualWdt = (opt.outWidth).toFloat()
